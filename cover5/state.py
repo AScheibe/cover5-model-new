@@ -1,4 +1,4 @@
-"""Per-week state: last recommendation, confirmed picks, and a market snapshot log."""
+"""Per-week bot state (the picks the tracker believes you have) and the market snapshot log."""
 from __future__ import annotations
 
 import csv
@@ -17,7 +17,7 @@ def state_path(season: int, week: int):
 def load_state(season: int, week: int) -> dict:
     p = state_path(season, week)
     if not p.exists():
-        return {"recommended": [], "confirmed": {}, "history": [], "last_run": None}
+        return {"recommended": [], "history": [], "last_run": None}
     return json.loads(p.read_text())
 
 
@@ -27,18 +27,20 @@ def save_state(season: int, week: int, st: dict) -> None:
 
 
 def picks_from_state(st: dict) -> list[Pick]:
-    """Current picks = recommendation, overridden by anything the user confirmed."""
-    picks = [Pick(**{k: p[k] for k in ("game_id", "side", "team", "edge", "locked")}) for p in st.get("recommended", [])]
-    for game_id, c in st.get("confirmed", {}).items():
-        # a confirmed pick replaces the recommendation for that game (or adds it)
-        picks = [p for p in picks if p.game_id != game_id]
-        picks.append(Pick(game_id, c["side"], c["team"], 0.0))
-    return picks
+    """The picks the tracker believes you have entered in the league app.
+
+    That is the last recommendation (it assumes you follow alerts) unless you
+    told it otherwise with the ``picks`` command, which rewrites this list.
+    Lock flags are not trusted from disk: kickoff locks come from the board and
+    manual locks from the overrides file on every run.
+    """
+    return [Pick(p["game_id"], p["side"], p["team"], float(p.get("edge", 0.0)))
+            for p in st.get("recommended", [])]
 
 
 def picks_to_state(picks: list[Pick]) -> list[dict]:
     return [{"game_id": p.game_id, "side": p.side, "team": p.team,
-             "edge": round(p.edge, 2), "locked": p.locked} for p in picks]
+             "edge": round(p.edge, 2), "locked": p.locked, "manual": p.manual} for p in picks]
 
 
 def append_snapshot(season: int, week: int, market: list[MarketLine]) -> None:
@@ -52,6 +54,14 @@ def append_snapshot(season: int, week: int, market: list[MarketLine]) -> None:
             w.writeheader()
         for m in market:
             w.writerow(m.to_row())
+
+
+def load_snapshots(season: int, week: int):
+    import pandas as pd
+    p = config.SNAPSHOT_DIR / f"{config.week_key(season, week)}.csv"
+    if not p.exists():
+        return None
+    return pd.read_csv(p)
 
 
 def now_iso() -> str:

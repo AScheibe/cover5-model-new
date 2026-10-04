@@ -11,7 +11,11 @@ on:
   workflow_dispatch:
     inputs:
       command:
-        description: "init-week or update"
+        description: >-
+          A cover5 command, e.g. "update", "init-week", "picks IND CHI LAR TEN JAX",
+          "lock TEN", "set-line IND -3.5", "set-points TEN 5.5", "set-score IND 30 13",
+          "clear IND", "overrides". Anything other than update/init-week is recorded
+          and then followed by a fresh update.
         default: "update"
 
 permissions:
@@ -35,29 +39,46 @@ jobs:
           python-version: "3.11"
           cache: pip
       - run: pip install -r requirements.txt
-      - name: Decide command
-        id: cmd
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "cmd=${{ github.event.inputs.command }}" >> "$GITHUB_OUTPUT"
-          elif [ "${{ github.event.schedule }}" = "0 16 * * 3" ]; then
-            echo "cmd=init-week" >> "$GITHUB_OUTPUT"
-          else
-            echo "cmd=update" >> "$GITHUB_OUTPUT"
-          fi
       - name: Run tracker
+        id: run
+        env:
+          # Passed through the environment and split without eval, so a typed
+          # command can't inject shell.
+          DISPATCH_COMMAND: ${{ github.event.inputs.command }}
+          EVENT_NAME: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
         run: |
-          set -e
-          if [ "${{ steps.cmd.outputs.cmd }}" = "init-week" ]; then
-            python -m cover5 init-week || echo "week file already exists"
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            CMD="${DISPATCH_COMMAND:-update}"
+          elif [ "$SCHEDULE" = "0 16 * * 3" ]; then
+            CMD="init-week"
           else
-            python -m cover5 update || echo "update skipped (no league file yet?)"
+            CMD="update"
           fi
+          read -r -a ARGS <<< "$CMD"
+          case "${ARGS[0]:-}" in
+            update|init-week|status|score-week|overrides|picks|lock|unlock|set-line|set-score|set-points|clear) ;;
+            *) echo "::error::unknown command '${ARGS[0]:-}'"; exit 1 ;;
+          esac
+          echo "label=${ARGS[0]}" >> "$GITHUB_OUTPUT"
+          case "${ARGS[0]}" in
+            init-week)
+              python -m cover5 init-week || echo "week file already exists" ;;
+            update)
+              python -m cover5 update || echo "update skipped (no league file yet?)" ;;
+            status|score-week|overrides)
+              python -m cover5 "${ARGS[@]}" ;;
+            *)
+              # Record the override, then recompute on fresh lines (one alert, not two).
+              python -m cover5 "${ARGS[@]}" --no-recompute
+              python -m cover5 update || echo "update skipped (no league file yet?)" ;;
+          esac
       - name: Commit state
         run: |
           git config user.name "cover5-bot"
           git config user.email "cover5-bot@users.noreply.github.com"
           git add data/
-          git diff --cached --quiet || git commit -m "cover5: ${{ steps.cmd.outputs.cmd }} $(date -u +%Y-%m-%dT%H:%MZ)"
+          git diff --cached --quiet || git commit -m "cover5: ${{ steps.run.outputs.label }} $(date -u +%Y-%m-%dT%H:%MZ)"
           git pull --rebase origin "${{ github.ref_name }}"
           git push

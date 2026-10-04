@@ -10,6 +10,10 @@ LEAGUE_DIR = DATA / "league_lines"
 STATE_DIR = DATA / "state"
 SNAPSHOT_DIR = DATA / "snapshots"
 CACHE_DIR = DATA / "cache"
+OVERRIDES_DIR = DATA / "overrides"
+
+# Skip all schedule downloads and use the cached copy (tests, offline use).
+OFFLINE = os.environ.get("COVER5_OFFLINE", "") not in ("", "0", "false")
 
 NFLVERSE_GAMES_URL = (
     "https://github.com/nflverse/nflverse-data/releases/download/schedules/games.csv"
@@ -37,5 +41,5 @@ def week_key(season: int, week: int) -> str:
 
 
 def ensure_dirs() -> None:
-    for d in (LEAGUE_DIR, STATE_DIR, SNAPSHOT_DIR, CACHE_DIR):
+    for d in (LEAGUE_DIR, STATE_DIR, SNAPSHOT_DIR, CACHE_DIR, OVERRIDES_DIR):
         d.mkdir(parents=True, exist_ok=True)

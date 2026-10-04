@@ -18,6 +18,8 @@ def load_games(max_age_hours: float = 6.0, force: bool = False) -> pd.DataFrame:
     config.ensure_dirs()
     path = config.CACHE_DIR / "games.csv"
     fresh = path.exists() and (time.time() - path.stat().st_mtime) < max_age_hours * 3600
+    if config.OFFLINE and path.exists():
+        force, fresh = False, True
     if force or not fresh:
         try:
             r = requests.get(config.NFLVERSE_GAMES_URL, timeout=60)

@@ -37,30 +37,59 @@ about a 68% chance of out-scoring a no-edge picker.
 ```bash
 pip install -r requirements.txt
 
-# Wednesday: seed the week's league lines from the current market, then open
-# data/league_lines/<season>_wk<NN>.csv and fix any number that differs from
-# the league sheet. home_spread is the number next to the home team (-3 = home
-# favored by 3).
+# Wednesday: seed the week's league lines from the current market.
 python -m cover5 init-week
 
 # Any time after: fetch the market, recompute, alert on changes.
 python -m cover5 update
 
-# Or type the league sheet in the way the app shows it, from the named team's
-# point of view (LAR, WSH and other app abbreviations are accepted):
+# Correct any league line that differs from the app, from that team's view
+# (LAR, WSH and other app abbreviations are accepted):
 python -m cover5 set-line IND -3.5
-python -m cover5 set-line TEN 11.5
 
-# If you deviated from the recommendation on the league site, say so, so the
-# tracker reasons from what you actually have in.
-python -m cover5 confirm KC
-
-# After the games: score the week the way the app does, to check both agree.
+# After the games: grade the week the way the app does.
 python -m cover5 score-week
 
 python -m cover5 status
 python -m cover5 backtest
 ```
+
+## Overrides: telling the tracker what is true
+
+The tracker can't see the league app, so it assumes you follow its alerts.
+When reality differs, tell it. Overrides live in `data/overrides/`, are never
+erased by scheduled runs or by re-seeding the week, and every one immediately
+recomputes the picks from the last logged lines and alerts if they change.
+
+| command | what it does | how the model uses it |
+| --- | --- | --- |
+| `picks IND CHI LAR TEN JAX` | the picks you actually have in the app | replaces what the tracker thought you had; anything kicked off is locked |
+| `lock TEN` / `unlock TEN` | pin a pick, before or after kickoff | takes one of the five slots; never swapped or flipped; the weakest open pick makes room |
+| `set-line IND -3.5` | the league's line, from that team's view | edges, picks and grading all use it; marked `*` in alerts |
+| `set-score IND 30 13 [--live]` | a game's score, that team's points first | grades whichever side you picked, using the league line |
+| `set-points TEN 5.5 [--live]` | a pick's score exactly as the app shows it | beats any score; also locks TEN as your pick in that game |
+| `overrides`, `clear IND [--kind line]` | list or remove overrides | |
+
+Scores resolve in this order: points override, then score override, then the
+nflverse final, then the pick's expected edge if the game isn't graded yet.
+Alerts show each pick as `[FINAL +13.5]`, `[LIVE +8]`, `[LOCKED]` or
+`[LOCKED by you]`, and end with a running week total:
+
+```
+Week total: +13.5 final (1 pick), +5.0 expected from line movement (4 open). Projected +18.5
+```
+
+Picks that have kicked off are valued at the last line logged before kickoff,
+because the odds feeds switch to in-game lines once a game starts.
+
+Banked points change the slots, the alerts and the week total. They don't
+change which open games are best: each point of movement is worth the same
+whether you're up 30 or down 30, and every pick carries about the same 13
+points of game-to-game noise, so there is no safer or riskier pick to switch to.
+
+From your phone, use the repo's Actions tab, open "cover5 line tracker", tap
+"Run workflow", and type any of these commands (e.g. `lock TEN`). The workflow
+records it, then runs a fresh update.
 
 ### Odds source
 
@@ -97,9 +126,9 @@ morning ET. It commits `data/` back to the repo so state persists between runs.
 1. Repo Settings, Secrets and variables, Actions: add `ODDS_API_KEY` and
    `NTFY_TOPIC` (and/or `ALERT_WEBHOOK_URL`).
 2. Repo Settings, Actions, General: allow workflows read and write permissions.
-3. After the Wednesday run, edit the league CSV in `data/league_lines/` if the
-   league sheet differs from the market snapshot, and commit.
-4. Use the workflow's "Run workflow" button to trigger `update` on demand.
+3. After the Wednesday run, compare the alert to the league app and run
+   `set-line` for any game that differs (from the "Run workflow" button).
+4. Use the same button to run `update` or any override command on demand.
 
 The polling cadence uses roughly 330 Odds API requests a month, under the free
 tier's 500.
@@ -112,14 +141,17 @@ cover5/
   providers.py  Odds API and ESPN fetch + parse
   schedule.py   nflverse schedule (kickoffs, ids, results, current week)
   league.py     the frozen Wednesday lines, one CSV per week
-  picks.py      board, greedy pick update with hysteresis and locks
+  overrides.py  your lines, locks, scores and points; never touched by the bot
+  picks.py      board, slot-aware pick update with hysteresis and locks
+  tally.py      grades picks: final, live, or expected
   state.py      per-week state json + market snapshot log
   alerts.py     message formatting and delivery
   backtest.py   historical checks; replay_snapshots() for your own logged data
   cli.py
 data/
   league_lines/ <season>_wk<NN>.csv   (edit to match the league sheet)
-  state/        <season>_wk<NN>.json  (last recommendation, confirmations)
+  state/        <season>_wk<NN>.json  (picks the tracker believes you have)
+  overrides/    <season>_wk<NN>.json  (your overrides)
   snapshots/    <season>_wk<NN>.csv   (every market read; grows a real
                                         Wednesday-vs-close dataset over time)
 tests/
