@@ -86,13 +86,17 @@ def format_alert(season: int, week: int, picks: list[Pick], diff: dict, board: p
     return title, "\n".join(lines)
 
 
-def send(title: str, body: str, force: bool = False, changed: bool = True) -> None:
-    """Print always; push to ntfy/webhook only when picks changed (or force)."""
-    print(title)
-    print(body)
+def send(title: str, body: str, force: bool = False, changed: bool = True, echo: bool = True) -> bool:
+    """Push to ntfy/webhook only when picks changed (or force). Returns True if a
+    push was attempted on at least one configured channel. ``echo`` prints it."""
+    if echo:
+        print(title)
+        print(body)
     if not (changed or force):
-        return
+        return False
+    sent = False
     if config.NTFY_TOPIC:
+        sent = True
         try:
             requests.post(f"{config.NTFY_SERVER}/{config.NTFY_TOPIC}", data=body.encode(),
                           headers={"Title": title, "Priority": "high" if changed else "default",
@@ -100,8 +104,10 @@ def send(title: str, body: str, force: bool = False, changed: bool = True) -> No
         except requests.RequestException as e:
             print(f"[alerts] ntfy failed: {e}")
     if config.ALERT_WEBHOOK_URL:
+        sent = True
         try:
             text = f"*{title}*\n```\n{body}\n```"
             requests.post(config.ALERT_WEBHOOK_URL, json={"text": text, "content": text}, timeout=15)
         except requests.RequestException as e:
             print(f"[alerts] webhook failed: {e}")
+    return sent

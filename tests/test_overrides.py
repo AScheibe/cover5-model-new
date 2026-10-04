@@ -161,7 +161,8 @@ def week(tmp_root, monkeypatch, capsys):
     assert run("init-week", "--no-market") == 0
     # market: CLE -6 (edge 3 home), WAS -5 (2), BAL -4.5 (1.5), BUF -4 (1), CHI -3.5 (.5), others flat
     m = _market(now, {"CLE": -6.0, "WAS": -5.0, "BAL": -4.5, "BUF": -4.0, "CHI": -3.5})
-    monkeypatch.setattr(cli, "fetch_market", lambda provider=None: m)
+    from cover5 import service
+    monkeypatch.setattr(service, "fetch_market", lambda provider=None: m)
     capsys.readouterr()
     return run
 

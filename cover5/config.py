@@ -11,6 +11,8 @@ STATE_DIR = DATA / "state"
 SNAPSHOT_DIR = DATA / "snapshots"
 CACHE_DIR = DATA / "cache"
 OVERRIDES_DIR = DATA / "overrides"
+DB_PATH = DATA / "cover5.db"
+SETTINGS_PATH = DATA / "settings.json"
 
 # Skip all schedule downloads and use the cached copy (tests, offline use).
 OFFLINE = os.environ.get("COVER5_OFFLINE", "") not in ("", "0", "false")
