@@ -49,8 +49,17 @@ def load_history(path: Path | str = HISTORY_CSV, games_path: Path | str | None =
     """Read the open/close history and attach a kickoff timestamp (gametime from nflverse)."""
     df = pd.read_csv(path)
     if games_path is not None and Path(games_path).exists() and "gametime" not in df.columns:
-        g = pd.read_csv(games_path, usecols=["game_id", "gametime"])
-        df = df.merge(g, on="game_id", how="left")
+        g = pd.read_csv(games_path, usecols=["game_id", "season", "week", "game_type", "gameday",
+                                             "gametime", "home_score"])
+        df = df.merge(g[["game_id", "gametime"]], on="game_id", how="left")
+        # Drop in-progress weeks (REG games still unplayed on/after the latest played date):
+        # their pick pool is truncated to the early slate, which no real picker faces.
+        reg = g[g.game_type == "REG"]
+        last = reg.loc[reg.home_score.notna(), "gameday"].max()
+        live = reg[reg.home_score.isna() & (reg.gameday >= last)][["season", "week"]].drop_duplicates()
+        if len(live):
+            key = pd.MultiIndex.from_frame(df[["season", "week"]])
+            df = df[~key.isin(pd.MultiIndex.from_frame(live))].reset_index(drop=True)
     return df
 
 
@@ -140,7 +149,7 @@ def strat_movement_seq(weeks, threshold=1.0):
 def strat_favorites(weeks, pick_dog=False):
     out = []
     for w in weeks:
-        w = w.assign(fav_size=-w.open_home_spread.abs() * -1)  # |open|
+        w = w.assign(fav_size=w.open_home_spread.abs())
         top = _ranked(w, "fav_size").head(N_PICKS)
         fav_sign = np.where(top.open_home_spread <= 0, 1.0, -1.0)  # home favored -> HOME
         sign = -fav_sign if pick_dog else fav_sign
@@ -149,7 +158,18 @@ def strat_favorites(weeks, pick_dog=False):
 
 
 # ----------------------------------------------------------------------- summary
-def summarize(mat: np.ndarray, rand: np.ndarray, rng: np.random.Generator, trials: int) -> dict:
+def _cluster_se(x: np.ndarray, groups: np.ndarray) -> float | None:
+    """Cluster-robust (by season) standard error of the mean of x."""
+    n = len(x)
+    if n < 2 or len(set(groups.tolist())) < 10:  # too few clusters -> cluster se is unreliable
+        return None
+    u = pd.Series(x - x.mean()).groupby(groups).sum().to_numpy()
+    g = len(u)
+    return float(math.sqrt((u ** 2).sum() * g / (g - 1)) / n)
+
+
+def summarize(mat: np.ndarray, rand: np.ndarray, rng: np.random.Generator, trials: int,
+              seasons: np.ndarray | None = None) -> dict:
     exp_week = mat.mean(axis=1)
     n = len(exp_week)
     sd_single = float(mat.std(ddof=1)) if mat.size > 1 else 0.0
@@ -174,6 +194,28 @@ def summarize(mat: np.ndarray, rand: np.ndarray, rng: np.random.Generator, trial
         "p_beat_random_season": float((s > r).mean() + 0.5 * (s == r).mean()),
         "p_beat_random_week": float((wk > 0).mean() + 0.5 * (wk == 0).mean()),
         "p_week_positive": float((mat > 0).mean()),
+        **_paired_stats(exp_week, rand, seasons),
+    }
+
+
+def _paired_stats(exp_week: np.ndarray, rand: np.ndarray, seasons: np.ndarray | None) -> dict:
+    """Week-paired difference vs the random picker's expected week, with z-scores.
+
+    se_diff is the iid-weeks standard error; se_diff_cluster_season clusters weeks by season.
+    The random picker's exact expectation is 0, so diff differs from mean_week only by MC noise.
+    """
+    if rand.shape[0] != len(exp_week):
+        return {}
+    diff = exp_week - rand.mean(axis=1)
+    n = len(diff)
+    se = float(diff.std(ddof=1) / math.sqrt(n)) if n > 1 else None
+    se_c = _cluster_se(diff, seasons) if seasons is not None and len(seasons) == n else None
+    return {
+        "mean_diff_vs_random": float(diff.mean()),
+        "se_diff": se,
+        "z_vs_random": float(diff.mean() / se) if se else None,
+        "se_diff_cluster_season": se_c,
+        "z_vs_random_cluster_season": float(diff.mean() / se_c) if se_c else None,
     }
 
 
@@ -193,6 +235,10 @@ def oracle_buckets(d: pd.DataFrame) -> dict:
             "mean_move_side_pts": float(pts.mean()) if n else None,
             "se": float(pts.std(ddof=1) / math.sqrt(n)) if n > 1 else None,
             "cover_rate": float(((pts > 0).sum() + 0.5 * (pts == 0).sum()) / n) if n else None,
+            # realized points per point of movement (1.0 = market move is worth face value)
+            "pts_per_edge_point": float(pts.mean() / g.abs_edge.mean()) if n and g.abs_edge.mean() > 0 else None,
+            "pts_per_edge_point_se": (float(pts.std(ddof=1) / math.sqrt(n) / g.abs_edge.mean())
+                                      if n > 1 and g.abs_edge.mean() > 0 else None),
         })
     e, h = d.edge.to_numpy(), d.home_pts.to_numpy()
     slope0 = float((e * h).sum() / (e * e).sum())
@@ -200,7 +246,27 @@ def oracle_buckets(d: pd.DataFrame) -> dict:
     se0 = float(math.sqrt((resid ** 2).sum() / (len(e) - 1) / (e * e).sum()))
     X = np.column_stack([np.ones_like(e), e])
     coef, *_ = np.linalg.lstsq(X, h, rcond=None)
+    # heteroskedasticity-robust (HC1) standard errors for the OLS fit and the no-intercept slope
+    r1 = h - X @ coef
+    xtxi = np.linalg.inv(X.T @ X)
+    meat = (X * r1[:, None]).T @ (X * r1[:, None])
+    se_ols = np.sqrt(np.diag(xtxi @ meat @ xtxi) * len(h) / (len(h) - 2))
+    se0_hc = float(math.sqrt(((e * resid) ** 2).sum()) / (e * e).sum())
+
+    def _moved(sub):
+        p = sub.move_pts.to_numpy()
+        if len(p) < 2:
+            return None
+        se = float(p.std(ddof=1) / math.sqrt(len(p)))
+        return {"n": int(len(p)), "mean_move_side_pts": float(p.mean()), "se": se,
+                "z": float(p.mean() / se) if se else None, "mean_abs_edge": float(sub.abs_edge.mean())}
+
     return {
+        "slope_se_hc1": se0_hc,
+        "z_slope_eq_1": float((slope0 - 1) / se0_hc) if se0_hc else None,
+        "ols_se_hc1": [float(se_ols[0]), float(se_ols[1])],
+        "moved_ge1_games": _moved(d[d.abs_edge >= 1]),
+        "moved_ge1_games_2013+": _moved(d[(d.abs_edge >= 1) & (d.season >= 2013)]),
         "note": "bucket 0 = no move; its side is HOME, so its mean is the home-side points at the open",
         "buckets": rows,
         "slope_home_pts_on_edge_through_origin": slope0,
@@ -228,7 +294,7 @@ def run(df: pd.DataFrame | None = None, reps: int = 4000, trials: int = 20000, s
         "FAVORITES-TOP5": strat_favorites(weeks),
         "UNDERDOGS-TOP5": strat_favorites(weeks, pick_dog=True),
     }
-    strategies = {name: summarize(m, rand, rng, trials) for name, m in mats.items()}
+    strategies = {name: summarize(m, rand, rng, trials, seasons) for name, m in mats.items()}
     strategies["RANDOM"]["sd_single_random_week"] = strategies["RANDOM"]["sd_week"]
 
     top5 = mats["MOVEMENT-TOP5"][:, 0]
@@ -236,7 +302,7 @@ def run(df: pd.DataFrame | None = None, reps: int = 4000, trials: int = 20000, s
     for label, lo, hi in ERAS:
         m = (seasons >= lo) & (seasons <= hi)
         if m.any():
-            by_era[label] = summarize(mats["MOVEMENT-TOP5"][m], rand[m], rng, trials)
+            by_era[label] = summarize(mats["MOVEMENT-TOP5"][m], rand[m], rng, trials, seasons[m])
     per_season = {}
     for s in sorted(set(seasons)):
         m = seasons == s
@@ -267,6 +333,13 @@ def run(df: pd.DataFrame | None = None, reps: int = 4000, trials: int = 20000, s
     for t in (0.5, 1.5, 2.0):
         sens[f"MOVEMENT-SEQ-T{t:g}"] = summarize(strat_movement_seq(weeks, t), rand, rng, trials)
 
+    # 2013+ restriction (separate rng stream: earlier P values are unchanged by this block)
+    rng2 = np.random.default_rng(seed + 1)
+    m13 = seasons >= 2013
+    if m13.any():
+        for name in ("MOVEMENT-TOP5", "MOVEMENT-TOP5-MIN1", f"MOVEMENT-SEQ-T{seq_threshold:g}"):
+            sens[f"{name}[2013+]"] = summarize(mats[name][m13], rand[m13], rng2, trials, seasons[m13])
+
     # how often the look-ahead TOP5 and the sequential rule agree on the 5 games
     overlap = float(np.mean([
         len(set(_ranked(w, "abs_edge").head(N_PICKS).game_id) & set(sequential_picks(w, seq_threshold).game_id))
@@ -296,12 +369,16 @@ def run(df: pd.DataFrame | None = None, reps: int = 4000, trials: int = 20000, s
 
 def format_table(res: dict) -> str:
     lines = []
-    h = f"{'strategy':<40}{'weeks':>6}{'mean/wk':>9}{'sd/wk':>8}{'se':>7}{'season':>8}{'P>rand':>8}"
+    h = f"{'strategy':<40}{'weeks':>6}{'mean/wk':>9}{'sd/wk':>8}{'se':>7}{'season':>8}{'P>rand':>8}{'z':>7}{'z_cl':>7}"
     lines += [f"games={res['games_used']} weeks={res['weeks_used']} seasons={res['seasons']}", h, "-" * len(h)]
 
     def row(name, s):
         return (f"{name:<40}{s['weeks']:>6}{s['mean_week']:>9.2f}{s['sd_week']:>8.2f}"
-                f"{s['se_mean_week']:>7.2f}{s['mean_season']:>8.1f}{s['p_beat_random_season']:>8.3f}")
+                f"{s['se_mean_week']:>7.2f}{s['mean_season']:>8.1f}{s['p_beat_random_season']:>8.3f}"
+                f"{_f(s.get('z_vs_random'))}{_f(s.get('z_vs_random_cluster_season'))}")
+
+    def _f(v):
+        return f"{v:>7.2f}" if v is not None else f"{'-':>7}"
 
     for name, s in res["strategies"].items():
         lines.append(row(name, s))
@@ -314,13 +391,23 @@ def format_table(res: dict) -> str:
                      f"{s['n_moved_ge1_per_week']:>13.1f}")
     oc = res["oracle_check"]
     lines += ["", "Oracle check: movement-side league points per game by |open-close|",
-              f"{'|edge|':<8}{'n':>6}{'mean|e|':>9}{'mean pts':>10}{'se':>7}{'cover%':>8}"]
+              f"{'|edge|':<8}{'n':>6}{'mean|e|':>9}{'mean pts':>10}{'se':>7}{'cover%':>8}{'pts/edge':>10}{'se':>7}"]
     for b in oc["buckets"]:
         if b["n"]:
             lines.append(f"{b['bucket']:<8}{b['n']:>6}{b['mean_abs_edge']:>9.2f}{b['mean_move_side_pts']:>10.2f}"
-                         f"{(b['se'] or 0):>7.2f}{100 * b['cover_rate']:>8.1f}")
+                         f"{(b['se'] or 0):>7.2f}{100 * b['cover_rate']:>8.1f}"
+                         + (f"{b['pts_per_edge_point']:>10.2f}{b['pts_per_edge_point_se']:>7.2f}"
+                            if b["pts_per_edge_point"] is not None else ""))
     lines.append(f"slope(home pts ~ edge, no intercept) = {oc['slope_home_pts_on_edge_through_origin']:.3f}"
-                 f" +- {oc['slope_se']:.3f}")
+                 f" +- {oc['slope_se']:.3f} (HC1 {oc['slope_se_hc1']:.3f}; z for slope=1: {oc['z_slope_eq_1']:.2f})")
+    a, b1 = oc["ols_intercept_slope"]
+    sa, sb = oc["ols_se_hc1"]
+    lines.append(f"OLS home pts = {a:.3f} (+- {sa:.3f}) + {b1:.3f} (+- {sb:.3f}) * edge")
+    for k in ("moved_ge1_games", "moved_ge1_games_2013+"):
+        m = oc.get(k)
+        if m:
+            lines.append(f"{k}: n={m['n']} movement-side pts/game {m['mean_move_side_pts']:.2f} +- {m['se']:.2f}"
+                         f" (z {m['z']:.2f}), mean|edge| {m['mean_abs_edge']:.2f}")
     lines.append(f"TOP5 vs SEQ-T1 mean overlap: {res['top5_vs_sequential_mean_overlap_games']:.2f} of 5 games")
     return "\n".join(lines)
 
