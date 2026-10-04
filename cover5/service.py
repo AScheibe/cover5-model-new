@@ -40,6 +40,17 @@ class UserError(Exception):
     """A request the user can fix: unknown team, two picks in one game, no league file..."""
 
 
+class ProviderError(UserError):
+    """The odds provider failed (network, bad key, unreadable market file). HTTP 502 in the API."""
+
+
+def _fetch(provider: str | None):
+    try:
+        return fetch_market(provider)
+    except Exception as e:  # noqa: BLE001
+        raise ProviderError(f"Market fetch failed: {e}") from e
+
+
 @dataclass
 class Outcome:
     view: dict | None = None
@@ -356,14 +367,17 @@ def _after_change(season: int, week: int, reason: str, recompute: bool, echo: bo
 # --------------------------------------------------------------------------- operations
 def init_week(season: int, week: int, *, overwrite: bool = False, use_market: bool = True,
               provider: str | None = None) -> Outcome:
+    if not overwrite and league_path(season, week).exists():
+        raise UserError(f"{season} week {week} already has league lines; overwrite to replace them")
+    # Fetch outside LOCK so a slow provider never blocks reads of the week.
+    market, msgs = None, []
+    if use_market:
+        try:
+            market = fetch_market(provider)
+        except Exception as e:  # noqa: BLE001
+            msgs.append(f"Market fetch failed ({e}); seeded from nflverse spreads only.")
     with LOCK:
         g = games()
-        market, msgs = None, []
-        if use_market:
-            try:
-                market = fetch_market(provider)
-            except Exception as e:  # noqa: BLE001
-                msgs.append(f"Market fetch failed ({e}); seeded from nflverse spreads only.")
         try:
             df = build_week_file(g, season, week, market, overwrite=overwrite)
         except FileExistsError as e:
@@ -385,7 +399,9 @@ def update(season: int, week: int, *, provider: str | None = None, force_alert: 
            echo: bool = False) -> Outcome:
     with LOCK:
         _load_league(season, week)               # fail early with a clear message
-        market = fetch_market(provider)
+    market = _fetch(provider)                    # outside LOCK: a slow provider never blocks reads
+    with LOCK:
+        _load_league(season, week)
         st.append_snapshot(season, week, market)
         c, alert = compute(season, week, market, reason="market update", alert=True, save=True,
                            force_alert=force_alert, echo=echo)

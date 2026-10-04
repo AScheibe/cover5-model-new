@@ -9,3 +9,10 @@ data/history/raw/*
 data/cover5.db
 data/cover5.db-*
 data/settings.json
+
+# web app build output
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+frontend/test-results/
+frontend/playwright-report/

@@ -6,9 +6,11 @@ can be unit tested on saved JSON.
 """
 from __future__ import annotations
 
+import json
 import statistics
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
+from pathlib import Path
 
 import requests
 
@@ -149,6 +151,44 @@ def _espn_home_spread(o: dict, home: str, away: str) -> float | None:
     return None
 
 
+# --------------------------------------------------------------------------- file
+def market_file_path() -> Path:
+    return Path(config.MARKET_FILE) if config.MARKET_FILE else config.DATA / "market.json"
+
+
+def fetch_file(path: str | Path | None = None) -> list[MarketLine]:
+    """Read market lines from a local JSON file (offline demos, end-to-end tests)."""
+    p = Path(path) if path else market_file_path()
+    if not p.exists():
+        raise RuntimeError(f"market file {p} not found (set COVER5_MARKET_FILE)")
+    try:
+        payload = json.loads(p.read_text())
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"market file {p} is not valid JSON: {e}") from e
+    return parse_file(payload)
+
+
+def parse_file(payload, now: datetime | None = None) -> list[MarketLine]:
+    """``[{away, home, kickoff_utc, home_spread, books?, source?}]``; rows without a spread are skipped."""
+    now = now or datetime.now(timezone.utc)
+    if isinstance(payload, dict):
+        payload = payload.get("lines", [])
+    out: list[MarketLine] = []
+    for i, row in enumerate(payload):
+        try:
+            away, home = normalize(row["away"]), normalize(row["home"])
+            if row.get("home_spread") is None:
+                continue
+            kick = datetime.fromisoformat(str(row["kickoff_utc"]).replace("Z", "+00:00"))
+            if kick.tzinfo is None:
+                kick = kick.replace(tzinfo=timezone.utc)
+            out.append(MarketLine(away, home, kick, float(row["home_spread"]), int(row.get("books") or 1),
+                                  str(row.get("source") or "file"), now))
+        except (KeyError, TypeError, ValueError) as e:
+            raise RuntimeError(f"market file row {i}: {e!r}") from e
+    return out
+
+
 # --------------------------------------------------------------------------- dispatch
 def fetch_market(provider: str | None = None, **kw) -> list[MarketLine]:
     provider = provider or config.PROVIDER
@@ -156,4 +196,6 @@ def fetch_market(provider: str | None = None, **kw) -> list[MarketLine]:
         return fetch_oddsapi()
     if provider == "espn":
         return fetch_espn(**kw)
+    if provider == "file":
+        return fetch_file()
     raise ValueError(f"unknown provider {provider!r}")

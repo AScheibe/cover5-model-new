@@ -85,6 +85,21 @@ def connect():
         con.close()
 
 
+@contextmanager
+def _read():
+    """A read-only connection, or None when no database exists yet. Never creates files."""
+    p = db_path()
+    if not p.exists():
+        yield None
+        return
+    con = sqlite3.connect(f"{p.resolve().as_uri()}?mode=ro", uri=True, timeout=10)
+    con.row_factory = sqlite3.Row
+    try:
+        yield con
+    finally:
+        con.close()
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -108,15 +123,28 @@ def _run_row(r: sqlite3.Row) -> dict:
 
 
 def list_runs(season: int, week: int, limit: int = 200) -> list[dict]:
-    with connect() as con:
+    with _read() as con:
+        if con is None:
+            return []
         rows = con.execute("SELECT * FROM runs WHERE season=? AND week=? ORDER BY at DESC, id DESC LIMIT ?",
                            (season, week, limit)).fetchall()
     return [_run_row(r) for r in rows]
 
 
+def all_runs() -> list[dict]:
+    """Every saved run, oldest first (for export)."""
+    with _read() as con:
+        if con is None:
+            return []
+        rows = con.execute("SELECT * FROM runs ORDER BY season, week, at, id").fetchall()
+    return [_run_row(r) for r in rows]
+
+
 def last_change(season: int, week: int) -> dict | None:
     """The most recent run that changed the picks: what the user was told to do."""
-    with connect() as con:
+    with _read() as con:
+        if con is None:
+            return None
         r = con.execute("SELECT * FROM runs WHERE season=? AND week=? AND changed=1 ORDER BY at DESC, id DESC LIMIT 1",
                         (season, week)).fetchone()
     if r is None:
@@ -180,13 +208,17 @@ def _week_row(r: sqlite3.Row) -> dict:
 
 
 def get_week(season: int, week: int) -> dict | None:
-    with connect() as con:
+    with _read() as con:
+        if con is None:
+            return None
         r = con.execute("SELECT * FROM weeks WHERE season=? AND week=?", (season, week)).fetchone()
     return _week_row(r) if r else None
 
 
 def list_weeks(season: int | None = None) -> list[dict]:
-    with connect() as con:
+    with _read() as con:
+        if con is None:
+            return []
         if season is None:
             rows = con.execute("SELECT * FROM weeks ORDER BY season, week").fetchall()
         else:
@@ -195,5 +227,7 @@ def list_weeks(season: int | None = None) -> list[dict]:
 
 
 def seasons() -> list[int]:
-    with connect() as con:
+    with _read() as con:
+        if con is None:
+            return []
         return [r[0] for r in con.execute("SELECT DISTINCT season FROM weeks ORDER BY season").fetchall()]

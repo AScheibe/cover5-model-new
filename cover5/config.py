@@ -21,9 +21,13 @@ NFLVERSE_GAMES_URL = (
     "https://github.com/nflverse/nflverse-data/releases/download/schedules/games.csv"
 )
 
-# Odds provider: "oddsapi" (needs ODDS_API_KEY) or "espn" (no key).
+# Odds provider: "oddsapi" (needs ODDS_API_KEY), "espn" (no key) or "file" (COVER5_MARKET_FILE).
 PROVIDER = os.environ.get("COVER5_PROVIDER", "oddsapi" if os.environ.get("ODDS_API_KEY") else "espn")
 ODDS_API_KEY = os.environ.get("ODDS_API_KEY", "")
+# Provider "file" (offline demos, end-to-end tests): a JSON list of
+# {away, home, kickoff_utc, home_spread, books?, source?}. Empty means data/market.json.
+MARKET_FILE = os.environ.get("COVER5_MARKET_FILE", "")
+PROVIDERS = ("oddsapi", "espn", "file")
 
 # Alert channels. Console output is always on.
 NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "")           # e.g. "cover5-alex-8f3k"
