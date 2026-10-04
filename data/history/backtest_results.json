@@ -1,0 +1,416 @@
+{
+  "dataset": "/home/user/cover5-model-new/data/history/nfl_open_close.csv",
+  "games_used": 4977,
+  "weeks_used": 331,
+  "seasons": [
+    2007,
+    2026
+  ],
+  "min_games_per_week": 8,
+  "mc_reps_per_week": 4000,
+  "season_trials": 20000,
+  "seed": 0,
+  "random_expected_week_analytic": 0.0,
+  "strategies": {
+    "RANDOM": {
+      "weeks": 331,
+      "mean_week": -0.02894033232628399,
+      "sd_week": 29.783810443819334,
+      "sd_week_expected": 0.4533104838015934,
+      "se_mean_week": 0.02491619759294622,
+      "mean_season": -0.5209259818731118,
+      "sd_season_sim": 127.07281444413243,
+      "p_beat_random_season": 0.500225,
+      "p_beat_random_week": 0.494775,
+      "p_week_positive": 0.4965083081570997,
+      "sd_single_random_week": 29.783810443819334
+    },
+    "MOVEMENT-TOP5": {
+      "weeks": 331,
+      "mean_week": 10.675226586102719,
+      "sd_week": 30.099070601679163,
+      "sd_week_expected": 30.099070601679163,
+      "se_mean_week": 1.6543945425354856,
+      "mean_season": 192.15407854984895,
+      "sd_season_sim": 127.45662401980017,
+      "p_beat_random_season": 0.8571,
+      "p_beat_random_week": 0.5933750000000001,
+      "p_week_positive": 0.649546827794562
+    },
+    "MOVEMENT-TOP5-MIN1": {
+      "weeks": 331,
+      "mean_week": 11.076289652567976,
+      "sd_week": 30.312509460815765,
+      "sd_week_expected": 29.79405616816841,
+      "se_mean_week": 1.6376294330451417,
+      "mean_season": 199.37321374622357,
+      "sd_season_sim": 129.0591517990589,
+      "p_beat_random_season": 0.8659,
+      "p_beat_random_week": 0.61,
+      "p_week_positive": 0.6533398791540785
+    },
+    "MOVEMENT-SEQ-T1": {
+      "weeks": 331,
+      "mean_week": 9.51510574018127,
+      "sd_week": 27.499169379813896,
+      "sd_week_expected": 27.499169379813896,
+      "se_mean_week": 1.5114910472911747,
+      "mean_season": 171.27190332326285,
+      "sd_season_sim": 116.06469751688003,
+      "p_beat_random_season": 0.8393999999999999,
+      "p_beat_random_week": 0.59355,
+      "p_week_positive": 0.6253776435045317
+    },
+    "FAVORITES-TOP5": {
+      "weeks": 331,
+      "mean_week": 2.5317220543806647,
+      "sd_week": 30.064144400609408,
+      "sd_week_expected": 30.064144400609408,
+      "se_mean_week": 1.652474824906793,
+      "mean_season": 45.570996978851966,
+      "sd_season_sim": 127.48567927778612,
+      "p_beat_random_season": 0.6034499999999999,
+      "p_beat_random_week": 0.523475,
+      "p_week_positive": 0.5226586102719033
+    },
+    "UNDERDOGS-TOP5": {
+      "weeks": 331,
+      "mean_week": -2.5317220543806647,
+      "sd_week": 30.064144400609408,
+      "sd_week_expected": 30.064144400609408,
+      "se_mean_week": 1.652474824906793,
+      "mean_season": -45.570996978851966,
+      "sd_season_sim": 127.68322329147193,
+      "p_beat_random_season": 0.39865,
+      "p_beat_random_week": 0.471075,
+      "p_week_positive": 0.46827794561933533
+    }
+  },
+  "movement_top5_by_era": {
+    "2007-2012": {
+      "weeks": 102,
+      "mean_week": 10.78921568627451,
+      "sd_week": 31.87805013746732,
+      "sd_week_expected": 31.87805013746732,
+      "se_mean_week": 3.1563973018500504,
+      "mean_season": 194.20588235294116,
+      "sd_season_sim": 135.02103325544715,
+      "p_beat_random_season": 0.8494499999999999,
+      "p_beat_random_week": 0.594,
+      "p_week_positive": 0.6666666666666666
+    },
+    "2013-2018": {
+      "weeks": 102,
+      "mean_week": 7.019607843137255,
+      "sd_week": 31.583452363714564,
+      "sd_week_expected": 31.583452363714564,
+      "se_mean_week": 3.1272277756652813,
+      "mean_season": 126.35294117647058,
+      "sd_season_sim": 132.66341378312336,
+      "p_beat_random_season": 0.7571,
+      "p_beat_random_week": 0.55365,
+      "p_week_positive": 0.5686274509803921
+    },
+    "2019+": {
+      "weeks": 127,
+      "mean_week": 13.51968503937008,
+      "sd_week": 27.19516483451062,
+      "sd_week_expected": 27.19516483451062,
+      "se_mean_week": 2.413180654054719,
+      "mean_season": 243.35433070866142,
+      "sd_season_sim": 115.39456346888232,
+      "p_beat_random_season": 0.922525,
+      "p_beat_random_week": 0.63815,
+      "p_week_positive": 0.7007874015748031
+    }
+  },
+  "movement_top5_per_season": {
+    "2007": {
+      "weeks": 17,
+      "mean_week": 11.823529411764707,
+      "se": 8.675305255740387,
+      "total": 201.0,
+      "n_moved_ge1_per_week": 7.9411764705882355
+    },
+    "2008": {
+      "weeks": 17,
+      "mean_week": 5.970588235294118,
+      "se": 6.656552304407656,
+      "total": 101.5,
+      "n_moved_ge1_per_week": 8.588235294117647
+    },
+    "2009": {
+      "weeks": 17,
+      "mean_week": 8.529411764705882,
+      "se": 7.860861559884375,
+      "total": 145.0,
+      "n_moved_ge1_per_week": 8.235294117647058
+    },
+    "2010": {
+      "weeks": 17,
+      "mean_week": 9.323529411764707,
+      "se": 10.14816170476994,
+      "total": 158.5,
+      "n_moved_ge1_per_week": 9.058823529411764
+    },
+    "2011": {
+      "weeks": 17,
+      "mean_week": 17.264705882352942,
+      "se": 7.7619828670051625,
+      "total": 293.5,
+      "n_moved_ge1_per_week": 7.764705882352941
+    },
+    "2012": {
+      "weeks": 17,
+      "mean_week": 11.823529411764707,
+      "se": 5.299649887241198,
+      "total": 201.0,
+      "n_moved_ge1_per_week": 8.882352941176471
+    },
+    "2013": {
+      "weeks": 17,
+      "mean_week": 3.2941176470588234,
+      "se": 8.213495308960212,
+      "total": 56.0,
+      "n_moved_ge1_per_week": 9.0
+    },
+    "2014": {
+      "weeks": 17,
+      "mean_week": 3.088235294117647,
+      "se": 7.753110772044898,
+      "total": 52.5,
+      "n_moved_ge1_per_week": 8.529411764705882
+    },
+    "2015": {
+      "weeks": 17,
+      "mean_week": 11.941176470588236,
+      "se": 6.229507928491774,
+      "total": 203.0,
+      "n_moved_ge1_per_week": 8.411764705882353
+    },
+    "2016": {
+      "weeks": 17,
+      "mean_week": -0.11764705882352941,
+      "se": 6.6061092229650535,
+      "total": -2.0,
+      "n_moved_ge1_per_week": 7.176470588235294
+    },
+    "2017": {
+      "weeks": 17,
+      "mean_week": 18.08823529411765,
+      "se": 9.486565122322686,
+      "total": 307.5,
+      "n_moved_ge1_per_week": 7.647058823529412
+    },
+    "2018": {
+      "weeks": 17,
+      "mean_week": 5.823529411764706,
+      "se": 7.490550563934874,
+      "total": 99.0,
+      "n_moved_ge1_per_week": 8.058823529411764
+    },
+    "2019": {
+      "weeks": 17,
+      "mean_week": 19.647058823529413,
+      "se": 6.754596025969906,
+      "total": 334.0,
+      "n_moved_ge1_per_week": 7.882352941176471
+    },
+    "2020": {
+      "weeks": 17,
+      "mean_week": 17.852941176470587,
+      "se": 7.106951431557628,
+      "total": 303.5,
+      "n_moved_ge1_per_week": 9.411764705882353
+    },
+    "2021": {
+      "weeks": 18,
+      "mean_week": 10.36111111111111,
+      "se": 6.613983695136785,
+      "total": 186.5,
+      "n_moved_ge1_per_week": 8.222222222222221
+    },
+    "2022": {
+      "weeks": 18,
+      "mean_week": 3.388888888888889,
+      "se": 5.1705481238679685,
+      "total": 61.0,
+      "n_moved_ge1_per_week": 3.1666666666666665
+    },
+    "2023": {
+      "weeks": 18,
+      "mean_week": 19.61111111111111,
+      "se": 6.847970401526924,
+      "total": 353.0,
+      "n_moved_ge1_per_week": 10.11111111111111
+    },
+    "2024": {
+      "weeks": 17,
+      "mean_week": 4.882352941176471,
+      "se": 7.007287358498113,
+      "total": 83.0,
+      "n_moved_ge1_per_week": 6.0
+    },
+    "2025": {
+      "weeks": 18,
+      "mean_week": 17.88888888888889,
+      "se": 5.9658006211707555,
+      "total": 322.0,
+      "n_moved_ge1_per_week": 6.333333333333333
+    },
+    "2026": {
+      "weeks": 4,
+      "mean_week": 18.5,
+      "se": 11.224972160321824,
+      "total": 74.0,
+      "n_moved_ge1_per_week": 4.5
+    }
+  },
+  "sensitivity": {
+    "MOVEMENT-TOP5[excl_2022]": {
+      "weeks": 313,
+      "mean_week": 11.094249201277956,
+      "sd_week": 30.475582367995344,
+      "sd_week_expected": 30.475582367995344,
+      "se_mean_week": 1.7225817616178243,
+      "mean_season": 199.6964856230032,
+      "sd_season_sim": 128.89012733427728,
+      "p_beat_random_season": 0.86805,
+      "p_beat_random_week": 0.6017750000000001,
+      "p_week_positive": 0.6485623003194888
+    },
+    "MOVEMENT-TOP5[excl_2022_2026]": {
+      "weeks": 309,
+      "mean_week": 10.998381877022654,
+      "sd_week": 30.580915086096542,
+      "sd_week_expected": 30.580915086096542,
+      "se_mean_week": 1.7396874765862662,
+      "mean_season": 197.97087378640776,
+      "sd_season_sim": 129.90522752578627,
+      "p_beat_random_season": 0.86015,
+      "p_beat_random_week": 0.5943,
+      "p_week_positive": 0.6472491909385113
+    },
+    "MOVEMENT-TOP5[2007-2021_only]": {
+      "weeks": 256,
+      "mean_week": 10.314453125,
+      "sd_week": 31.091101843090122,
+      "sd_week_expected": 31.091101843090122,
+      "se_mean_week": 1.9431938651931326,
+      "mean_season": 185.66015625,
+      "sd_season_sim": 131.63223106837162,
+      "p_beat_random_season": 0.8429,
+      "p_beat_random_week": 0.586375,
+      "p_week_positive": 0.6328125
+    },
+    "MOVEMENT-TOP5[excl_sign_flip_suspects]": {
+      "weeks": 331,
+      "mean_week": 9.746223564954683,
+      "sd_week": 30.28506896742995,
+      "sd_week_expected": 30.28506896742995,
+      "se_mean_week": 1.6646179373137102,
+      "mean_season": 175.43202416918427,
+      "sd_season_sim": 129.05911569378412,
+      "p_beat_random_season": 0.8376250000000001,
+      "p_beat_random_week": 0.5922499999999999,
+      "p_week_positive": 0.6374622356495468,
+      "n_games_excluded": 21
+    },
+    "MOVEMENT-SEQ-T0.5": {
+      "weeks": 331,
+      "mean_week": 9.386706948640484,
+      "sd_week": 26.84619500777864,
+      "sd_week_expected": 26.84619500777864,
+      "se_mean_week": 1.4756003298731293,
+      "mean_season": 168.9607250755287,
+      "sd_season_sim": 113.50092963309048,
+      "p_beat_random_season": 0.841325,
+      "p_beat_random_week": 0.594075,
+      "p_week_positive": 0.6253776435045317
+    },
+    "MOVEMENT-SEQ-T1.5": {
+      "weeks": 331,
+      "mean_week": 8.814199395770393,
+      "sd_week": 30.126995005629283,
+      "sd_week_expected": 30.126995005629283,
+      "se_mean_week": 1.6559294065885988,
+      "mean_season": 158.65558912386706,
+      "sd_season_sim": 128.01034132449732,
+      "p_beat_random_season": 0.814825,
+      "p_beat_random_week": 0.587325,
+      "p_week_positive": 0.622356495468278
+    },
+    "MOVEMENT-SEQ-T2": {
+      "weeks": 331,
+      "mean_week": 8.818731117824774,
+      "sd_week": 30.693283435990175,
+      "sd_week_expected": 30.693283435990175,
+      "se_mean_week": 1.6870554337370178,
+      "mean_season": 158.7371601208459,
+      "sd_season_sim": 130.00027453712931,
+      "p_beat_random_season": 0.810025,
+      "p_beat_random_week": 0.584,
+      "p_week_positive": 0.6012084592145015
+    }
+  },
+  "top5_vs_sequential_mean_overlap_games": 3.27190332326284,
+  "oracle_check": {
+    "note": "bucket 0 = no move; its side is HOME, so its mean is the home-side points at the open",
+    "buckets": [
+      {
+        "bucket": "0",
+        "n": 1087,
+        "mean_abs_edge": 0.0,
+        "mean_move_side_pts": 0.3091076356945722,
+        "se": 0.3992909955648522,
+        "cover_rate": 0.5110395584176632
+      },
+      {
+        "bucket": "0.5",
+        "n": 1287,
+        "mean_abs_edge": 0.5,
+        "mean_move_side_pts": 0.3947163947163947,
+        "se": 0.38018927665874414,
+        "cover_rate": 0.5198135198135199
+      },
+      {
+        "bucket": "1",
+        "n": 854,
+        "mean_abs_edge": 1.0,
+        "mean_move_side_pts": 1.190281030444965,
+        "se": 0.44336843047218166,
+        "cover_rate": 0.5573770491803278
+      },
+      {
+        "bucket": "1.5",
+        "n": 529,
+        "mean_abs_edge": 1.5,
+        "mean_move_side_pts": 1.7920604914933838,
+        "se": 0.5535144691040459,
+        "cover_rate": 0.5737240075614367
+      },
+      {
+        "bucket": "2",
+        "n": 458,
+        "mean_abs_edge": 2.0,
+        "mean_move_side_pts": 2.0382096069868996,
+        "se": 0.5895368788559713,
+        "cover_rate": 0.5655021834061136
+      },
+      {
+        "bucket": "2.5+",
+        "n": 762,
+        "mean_abs_edge": 3.5308398950131235,
+        "mean_move_side_pts": 3.0354330708661417,
+        "se": 0.48980705701600213,
+        "cover_rate": 0.5990813648293963
+      }
+    ],
+    "slope_home_pts_on_edge_through_origin": 0.9489460607517832,
+    "slope_se": 0.1056456060850442,
+    "ols_intercept_slope": [
+      0.04711489098859198,
+      0.9511739829833505
+    ]
+  }
+}
