@@ -27,7 +27,7 @@ export interface Game {
   result: GameResult | null;
   picked_side: Side | null;
   picked_team: string | null;
-  lock: { team: string; side: Side } | null;
+  lock: { team: string; side: Side; auto?: boolean; added?: boolean; replaced?: { team: string; side: Side } | null } | null;
 }
 
 export interface Pick {
@@ -45,7 +45,7 @@ export interface Pick {
   manual: boolean;
   status: PickStatus;
   points: number;
-  source: "points override" | "score override" | "nflverse" | "edge";
+  source: "points override" | "score override" | "nflverse" | "nflverse (live override superseded)" | "no league line" | "edge";
   line_overridden: boolean;
 }
 
@@ -100,6 +100,14 @@ export interface Overrides {
 
 export type LastChange = Diff & { at: string; reason: string; sent: boolean; body: string };
 
+/**
+ * What to change in the league app: the model's picks versus the picks you
+ * last confirmed (every change since then, netted out), for games that
+ * haven't kicked off. `confirmed` is null until you confirm picks this week,
+ * in which case the baseline is an empty set.
+ */
+export type Todo = Diff & { since: string | null; confirmed: string[] | null };
+
 export interface WeekView {
   season: number;
   week: number;
@@ -111,7 +119,9 @@ export interface WeekView {
   games?: Game[];
   picks?: Pick[];
   summary?: Summary;
+  /** Changes the model would make to the presumed picks; empty right after a saved run. */
   diff?: Diff;
+  todo?: Todo;
   warnings?: string[];
   overrides?: Overrides;
   last_change?: LastChange | null;
@@ -121,7 +131,10 @@ export interface Alert {
   title: string;
   body: string;
   changed: boolean;
+  /** True only when ntfy or the webhook accepted the push. */
   sent: boolean;
+  /** One line per channel that failed (no URLs or topics). */
+  failures?: string[];
 }
 
 export interface Outcome {
@@ -186,7 +199,7 @@ export interface HistoryResponse {
   totals: HistoryTotals;
 }
 
-export type Provider = "oddsapi" | "espn";
+export type Provider = "oddsapi" | "espn" | "file";
 
 export interface SchedulerSettings {
   enabled: boolean;
@@ -236,6 +249,21 @@ export interface Meta {
     webhook_set: boolean;
   };
   scheduler: SchedulerStatus;
+  /** When nflverse results were last downloaded. */
+  results?: ResultsInfo;
+}
+
+export interface ResultsInfo {
+  downloaded_at: string | null;
+  offline: boolean;
+}
+
+export interface BacktestStatus {
+  state: "idle" | "running" | "done" | "error";
+  started_at: string | null;
+  finished_at: string | null;
+  error: string | null;
+  started?: boolean;
 }
 
 export interface ScheduleWeek {

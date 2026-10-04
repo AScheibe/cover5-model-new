@@ -11,12 +11,14 @@ never interleave writes to the same week's files.
 from __future__ import annotations
 
 import math
+import shutil
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 import pandas as pd
+import requests
 
 from cover5 import alerts, config
 from cover5 import history
@@ -25,8 +27,8 @@ from cover5 import state as st
 from cover5.league import build_week_file, league_path, load_week_file
 from cover5.picks import (Pick, apply_locks, build_board, diff_picks, latest_snapshot_market,
                           lock_time_market, recommend)
-from cover5.providers import MarketLine, fetch_market
-from cover5.schedule import current_week, load_games
+from cover5.providers import MarketLine, fetch_market, redact
+from cover5.schedule import current_week, load_games, week_slate
 from cover5.scoring import AWAY, HOME, fmt_pick
 from cover5.tally import summarize, summary_line, tally_picks
 from cover5.teams import normalize
@@ -50,7 +52,8 @@ def _fetch(provider: str | None):
     try:
         return fetch_market(provider)
     except Exception as e:  # noqa: BLE001
-        raise ProviderError(f"Market fetch failed: {e}") from e
+        # ``from None``: the original error can carry the odds API key in its URL.
+        raise ProviderError(f"Market fetch failed: {redact(e)}") from None
 
 
 @dataclass
@@ -58,6 +61,7 @@ class Outcome:
     view: dict | None = None
     alert: dict | None = None          # {"title", "body", "changed", "sent"}
     messages: list[str] = field(default_factory=list)
+    recomputed: bool = False           # picks were recomputed from logged lines (not part of the JSON)
 
     def to_dict(self) -> dict:
         return {"week": self.view, "alert": self.alert, "messages": self.messages}
@@ -79,6 +83,7 @@ class Computed:
     title: str
     body: str
     market_source: dict
+    saved: bool = False                # written as the presumed picks: nothing is pending any more
 
 
 # --------------------------------------------------------------------------- lookups
@@ -234,18 +239,20 @@ def compute(season: int, week: int, market: list | None = None, *, reason: str,
     title, body = alerts.format_alert(season, week, picks, diff, board, tallies=tallies,
                                       warnings=warnings, reason=reason)
     c = Computed(season, week, now, league, ov, board, current, picks, tallies, diff, warnings,
-                 title, body, market_source)
+                 title, body, market_source, saved=save)
     alert_info = None
     if alert:
-        sent = alerts.send(title, body, force=force_alert, changed=diff["changed"], echo=echo)
-        alert_info = {"title": title, "body": body, "changed": diff["changed"], "sent": sent}
+        sent, failures = alerts.deliver(title, body, force=force_alert, changed=diff["changed"], echo=echo)
+        alert_info = {"title": title, "body": body, "changed": diff["changed"], "sent": sent,
+                      "failures": failures}
+        # The run (and the view) say when the push did not reach the phone.
+        c.warnings = warnings = warnings + [f"Alert not delivered: {f}" for f in failures]
     elif echo:
         print(title)
         print(body)
     if save:
         s["recommended"] = st.picks_to_state(picks)
         s["last_run"] = st.now_iso()
-        s.pop("confirmed", None)
         summ = summarize(tallies)
         s.setdefault("history", []).append({
             "at": s["last_run"], "reason": reason, "changed": diff["changed"],
@@ -254,11 +261,34 @@ def compute(season: int, week: int, market: list | None = None, *, reason: str,
         st.save_state(season, week, s)
         view = build_view(c)
         history.record_run(season, week, at=s["last_run"], reason=reason, changed=diff["changed"],
-                           diff=view["diff"], picks=view["picks"], summary=view["summary"],
+                           diff=_diff_json(diff), picks=view["picks"], summary=view["summary"],
                            warnings=warnings, title=title, body=body,
                            sent=bool(alert_info and alert_info["sent"]))
         history.upsert_week(view)
     return c, alert_info
+
+
+def _diff_json(d: dict) -> dict:
+    return {"changed": d["changed"], "added": [p.team for p in d["added"]],
+            "dropped": [p.team for p in d["dropped"]], "flipped": [p.team for p in d["flipped"]]}
+
+
+def _todo(c: Computed, s: dict) -> dict:
+    """What to change in the league app: the model's picks versus the ones you last confirmed.
+
+    Every change since you last said what you hold, netted out (an add that a
+    later run dropped again never shows), for games that haven't kicked off.
+    Before you confirm anything this week, the baseline is an empty set: add
+    all of the model's picks.
+    """
+    conf = st.confirmed_from_state(s)
+    d = diff_picks(conf or [], c.picks)
+    started = {r.game_id for r in c.board.itertuples() if r.locked}
+    teams = lambda ps: [p.team for p in ps if p.game_id not in started]   # noqa: E731
+    out = {"added": teams(d["added"]), "dropped": teams(d["dropped"]), "flipped": teams(d["flipped"])}
+    return {"changed": any(out.values()), **out,
+            "since": (s.get("confirmed") or {}).get("at") if conf is not None else None,
+            "confirmed": [p.team for p in conf] if conf is not None else None}
 
 
 def _latest_fetch(snaps: pd.DataFrame | None) -> str | None:
@@ -360,10 +390,10 @@ def build_view(c: Computed) -> dict:
         "picks": picks_out,
         "summary": {**{k: (round(v, 2) if isinstance(v, float) else v) for k, v in summ.items()},
                     "line": summary_line(summ)},
-        "diff": {"changed": c.diff["changed"],
-                 "added": [p.team for p in c.diff["added"]],
-                 "dropped": [p.team for p in c.diff["dropped"]],
-                 "flipped": [p.team for p in c.diff["flipped"]]},
+        # Changes the model would make to the presumed picks. Empty right after a
+        # saved run: those picks are now the presumed ones (``todo`` is what to do).
+        "diff": _diff_json(c.diff if not c.saved else {"changed": False, "added": [], "dropped": [], "flipped": []}),
+        "todo": _todo(c, s),
         "warnings": c.warnings,
         "overrides": {k: ov_list(k) for k in ovr.KINDS},
         "last_change": history.last_change(c.season, c.week),
@@ -379,25 +409,72 @@ def week_view(season: int, week: int, now: datetime | None = None) -> dict:
     return build_view(c)
 
 
+def _all_kicked_off(league: pd.DataFrame, now: datetime | None = None) -> bool:
+    now = now or datetime.now(timezone.utc)
+    return len(league) > 0 and all(now >= k for k in league.kickoff_utc)
+
+
 def _after_change(season: int, week: int, reason: str, recompute: bool, echo: bool,
                   messages: list[str], notes: list[str] | None = None) -> Outcome:
-    """Recompute from the last logged lines after an override, if there are any."""
+    """Recompute from the last logged lines after an override, if there are any.
+
+    Either way the week's history record is brought up to date.
+    """
     out = Outcome(messages=messages)
     if recompute and st.load_snapshots(season, week) is not None:
         c, out.alert = compute(season, week, None, reason=reason, alert=True, save=True, echo=echo,
                                notes=notes)
         out.view = build_view(c)
+        out.recomputed = True
     else:
         if recompute:
-            out.messages.append("No market lines logged yet this week, so picks were not "
-                                "recomputed. Fetch lines to update.")
+            if _all_kicked_off(_load_league(season, week)):
+                out.messages.append("No market lines were logged for this week, so picks were not "
+                                    "recomputed; every game has kicked off, so the picks stand as entered.")
+            else:
+                out.messages.append("No market lines logged yet this week, so picks were not "
+                                    "recomputed. Fetch lines to update.")
         out.view = week_view(season, week)
+        history.upsert_week(out.view)         # compute(save=True) does this on the other branch
     return out
+
+
+def _week_market(market: list[MarketLine], games: list[tuple[str, str, datetime]]) -> list[MarketLine]:
+    """Only the lines for this week's games: same teams, kickoff within a few days.
+
+    A feed returns whatever is on the board right now, which is another week's
+    slate when you fetch for a past or future week. Those lines must never be
+    logged as this week's snapshots.
+    """
+    kicks = {(a, h): k for a, h, k in games}
+    out = []
+    for m in market:
+        k = kicks.get((m.away, m.home))
+        if k is None:
+            continue
+        if abs((pd.Timestamp(m.kickoff_utc) - pd.Timestamp(k)).total_seconds()) > 3.5 * 86400:
+            continue
+        out.append(m)
+    return out
+
+
+def _backup_sheet(season: int, week: int, now: datetime) -> str | None:
+    path = league_path(season, week)
+    if not path.exists():
+        return None
+    d = config.LEAGUE_DIR / "backup"
+    d.mkdir(parents=True, exist_ok=True)
+    dest = d / f"{config.week_key(season, week)}-{now:%Y%m%dT%H%M%SZ}.csv"
+    shutil.copy2(path, dest)
+    return str(dest.relative_to(config.DATA))
 
 
 # --------------------------------------------------------------------------- operations
 def init_week(season: int, week: int, *, overwrite: bool = False, use_market: bool = True,
-              provider: str | None = None) -> Outcome:
+              provider: str | None = None, now: datetime | None = None) -> Outcome:
+    """Seed the week's league sheet. A re-seed (``overwrite``) never changes a frozen line
+    of a game that has kicked off, keeps the sheet's line for games the market lacks,
+    and saves the previous sheet under data/league_lines/backup/ first."""
     if not overwrite and league_path(season, week).exists():
         raise UserError(f"{season} week {week} already has league lines; overwrite to replace them")
     # Fetch outside LOCK so a slow provider never blocks reads of the week.
@@ -406,11 +483,29 @@ def init_week(season: int, week: int, *, overwrite: bool = False, use_market: bo
         try:
             market = fetch_market(provider)
         except Exception as e:  # noqa: BLE001
-            msgs.append(f"Market fetch failed ({e}); seeded from nflverse spreads only.")
+            msgs.append(f"Market fetch failed ({redact(e)}); seeded from nflverse spreads only.")
     with LOCK:
+        now = now or datetime.now(timezone.utc)
         g = games()
+        slate = week_slate(g, season, week)
+        if market is not None:
+            market = _week_market(market, list(zip(slate.away_team, slate.home_team, slate.kickoff_utc)))
+        keep, backup, n_started, n_missing = {}, None, 0, 0
+        if overwrite and league_path(season, week).exists():
+            old = load_week_file(season, week)
+            pairs = {(m.away, m.home) for m in (market or [])}
+            for r in old.itertuples():
+                if pd.isna(r.home_spread):
+                    continue
+                if now >= r.kickoff_utc:
+                    keep[r.game_id] = float(r.home_spread)
+                    n_started += 1
+                elif market is not None and (r.away, r.home) not in pairs:
+                    keep[r.game_id] = float(r.home_spread)
+                    n_missing += 1
+            backup = _backup_sheet(season, week, now)
         try:
-            df = build_week_file(g, season, week, market, overwrite=overwrite)
+            df = build_week_file(g, season, week, market, overwrite=overwrite, keep=keep)
         except FileExistsError as e:
             raise UserError(f"{season} week {week} already has league lines; overwrite to replace them") from e
         if df.empty:
@@ -418,26 +513,41 @@ def init_week(season: int, week: int, *, overwrite: bool = False, use_market: bo
             raise UserError(f"No regular season games found for {season} week {week}")
         msgs.append(f"Seeded {len(df)} games for {season} week {week}. "
                     "Correct any line that differs from the league app.")
-        if market is not None:
+        if n_started:
+            msgs.append(f"Kept the frozen league line for {n_started} game(s) that have kicked off.")
+        if n_missing:
+            msgs.append(f"Kept the sheet's line for {n_missing} game(s) the market has no line for.")
+        if backup:
+            msgs.append(f"The previous sheet is saved as {backup}.")
+        if market:
             st.append_snapshot(season, week, market)
         if ovr.load_overrides(season, week)["lines"]:
             msgs.append("Existing line overrides still apply on top of the new sheet.")
         out = Outcome(messages=msgs, view=week_view(season, week))
+        history.upsert_week(out.view, only_if_changed=True)    # a re-seed can regrade the week
         return out
 
 
 def update(season: int, week: int, *, provider: str | None = None, force_alert: bool = False,
            echo: bool = False) -> Outcome:
     with LOCK:
-        _load_league(season, week)               # fail early with a clear message
+        league = _load_league(season, week)      # fail early with a clear message
+        if _all_kicked_off(league):
+            raise UserError(f"Every {season} week {week} game has kicked off, so there are no lines left to "
+                            "fetch. Scores and the week's record still update from nflverse.")
     market = _fetch(provider)                    # outside LOCK: a slow provider never blocks reads
     with LOCK:
-        _load_league(season, week)
-        st.append_snapshot(season, week, market)
-        c, alert = compute(season, week, market, reason="market update", alert=True, save=True,
+        league = _load_league(season, week)
+        mine = _week_market(market, list(zip(league.away, league.home, league.kickoff_utc)))
+        msgs = [f"Fetched {len(mine)} market lines."]
+        if not mine:
+            msgs.append(f"The market has no lines for {season} week {week}'s games right now "
+                        f"({len(market)} lines for other games were ignored).")
+        else:
+            st.append_snapshot(season, week, mine)
+        c, alert = compute(season, week, mine, reason="market update", alert=True, save=True,
                            force_alert=force_alert, echo=echo)
-        return Outcome(view=build_view(c), alert=alert,
-                       messages=[f"Fetched {len(market)} market lines."])
+        return Outcome(view=build_view(c), alert=alert, messages=msgs, recomputed=True)
 
 
 ET = ZoneInfo("America/New_York")
@@ -448,13 +558,26 @@ def _effective_picks(season: int, week: int, ov: dict) -> list[Pick]:
     return apply_locks(st.picks_from_state(st.load_state(season, week)), ov["locks"])
 
 
-def _set_state_pick(season: int, week: int, game_id: str, pick: Pick | None) -> None:
-    """Rewrite the presumed pick for one game (None removes it)."""
+def _set_state_pick(season: int, week: int, game_id: str, pick: Pick | None,
+                    confirmed: bool = False) -> None:
+    """Rewrite the presumed pick for one game (None removes it).
+
+    ``confirmed`` makes the same change to the picks you confirmed, if you have.
+    """
     s = st.load_state(season, week)
     recs = [p for p in st.picks_from_state(s) if p.game_id != game_id]
     if pick is not None:
         recs.append(Pick(pick.game_id, pick.side, pick.team, pick.edge))
     s["recommended"] = st.picks_to_state(recs)
+    if confirmed and st.confirmed_from_state(s) is not None:
+        st.confirm_game(s, game_id, pick)
+    st.save_state(season, week, s)
+
+
+def _confirm_game(season: int, week: int, game_id: str, pick: Pick) -> None:
+    """You told the tracker you hold ``pick`` (by locking it or entering its points)."""
+    s = st.load_state(season, week)
+    st.confirm_game(s, game_id, pick)
     st.save_state(season, week, s)
 
 
@@ -463,17 +586,61 @@ def _require_kicked_off(r, week: int, force: bool) -> None:
     if force or datetime.now(timezone.utc) >= r.kickoff_utc:
         return
     k = pd.Timestamp(r.kickoff_utc).tz_convert(ET)
-    hint = (f" If you meant last week's game, use week {week - 1} (--week {week - 1})." if week > 1 else "")
+    hint = f" If you meant last week's game, enter it in week {week - 1}." if week > 1 else ""
     raise UserError(f"{r.away}@{r.home} hasn't kicked off yet (kickoff {k:%a %b %d %I:%M %p} ET), "
                     f"so it has no score to enter.{hint}")
 
 
-def set_picks(season: int, week: int, teams: list[str], *, recompute: bool = True,
-              echo: bool = False) -> Outcome:
-    """Replace the picks the tracker thinks you hold with the ones you actually entered.
+def _entered_vs_model(chosen: list[Pick], out: Outcome) -> list[str]:
+    """Say what you entered and, if the model's picks differ, exactly how."""
+    entered = ", ".join(p.team for p in chosen) or "none"
+    view = out.view or {}
+    got = {p["game_id"]: p for p in view.get("picks", [])}
+    if not out.recomputed:
+        msgs = [f"Your picks are now: {entered}"]
+        empty = config.N_PICKS - len(chosen)
+        if empty > 0:
+            open_games = [g for g in view.get("games", []) if not g["locked"]
+                          and g["game_id"] not in {p.game_id for p in chosen}]
+            msgs.append(f"{empty} open slot(s); the model will suggest teams for them once lines are fetched."
+                        if open_games else
+                        f"{empty} slot(s) stay empty: every other game has kicked off (an empty slot scores 0).")
+        return msgs
+    chosen_ids = {p.game_id for p in chosen}
+    switched = [(p.team, got[p.game_id]) for p in chosen if p.game_id in got and got[p.game_id]["team"] != p.team]
+    dropped = [p.team for p in chosen if p.game_id not in got]
+    added = [g for gid, g in got.items() if gid not in chosen_ids]
+    if not (switched or dropped or added):
+        msgs = [f"Your picks are now: {entered}"]
+        if len(got) < config.N_PICKS:
+            msgs.append(f"{config.N_PICKS - len(got)} slot(s) stay empty: no game that hasn't kicked off "
+                        "is left to fill them (an empty slot scores 0).")
+        return msgs
+    msgs = [f"You entered: {entered}."]
+    for team, g in switched:
+        msgs.append(f"The model would switch {team} to {g['team']} (edge {g['edge']:+.1f}). "
+                    f"Lock {team} to keep it.")
+    adds = ", ".join(f"{g['team']} (edge {g['edge']:+.1f})" for g in added)
+    if dropped and added:
+        msgs.append(f"The model would replace {', '.join(dropped)} with {adds}. Lock a team to keep it.")
+    elif dropped:
+        msgs.append(f"The model would drop {', '.join(dropped)}. Lock a team to keep it.")
+    elif added:
+        msgs.append(f"The model suggests {adds} for the open slot(s).")
+    msgs.append("The model's picks are now: " + ", ".join(g["team"] for g in got.values())
+                + ". \"Do this\" lists the changes to make in the app.")
+    return msgs
 
-    This is the full truth for the week, so any lock on a game you didn't list
-    (or on the other side of a game you did) is removed.
+
+def set_picks(season: int, week: int, teams: list[str], *, lock: list[str] | None = None,
+              recompute: bool = True, echo: bool = False) -> Outcome:
+    """Tell the tracker the picks you actually entered in the league app.
+
+    They become your confirmed picks and the presumed picks, so any lock on a
+    game you didn't list (or on the other side of a game you did) is removed.
+    The model then recomputes from them and may suggest changes, which the
+    messages spell out and ``todo`` lists. Teams in ``lock`` are locked too, so
+    the model keeps them (the web app locks a team you pick by hand).
     """
     with LOCK:
         league = _load_league(season, week)
@@ -486,22 +653,47 @@ def set_picks(season: int, week: int, teams: list[str], *, recompute: bool = Tru
                 raise UserError(f"two picks in {r.away}@{r.home}; pick one side per game")
             seen.add(r.game_id)
             chosen.append(Pick(r.game_id, side, t, 0.0))
-        ov = ovr.load_overrides(season, week)
         by_game = {p.game_id: p for p in chosen}
-        msgs = ["Your picks are now: " + (", ".join(p.team for p in chosen) or "none")]
+        to_lock = []
+        for team in lock or []:
+            r, t, side = team_game(league, team)
+            p = by_game.get(r.game_id)
+            if p is None or p.team != t:
+                raise UserError(f"{t} isn't in the picks you entered, so it can't be locked")
+            to_lock.append(p)
+        ov = ovr.load_overrides(season, week)
+        msgs = []
         for gid, lk in list(ov["locks"].items()):
             p = by_game.get(gid)
             if p is None or p.side != lk["side"]:
                 del ov["locks"][gid]
                 msgs.append(f"Removed your lock on {lk['team']} (it isn't in the picks you entered).")
+        for p in to_lock:
+            if p.game_id not in ov["locks"]:
+                ov["locks"][p.game_id] = {"team": p.team, "side": p.side, "replaced": None}
+                msgs.append(f"Locked {p.team}, so the model keeps it. Unlock it to let the model manage that pick.")
         ovr.save_overrides(season, week, ov)
         s = st.load_state(season, week)
         s["recommended"] = st.picks_to_state(chosen)
-        s.pop("confirmed", None)
+        st.set_confirmed(s, chosen, at=st.now_iso())
         st.save_state(season, week, s)
-        if len(chosen) < config.N_PICKS:
-            msgs.append(f"{config.N_PICKS - len(chosen)} open slot(s); the model will suggest teams for them.")
-        return _after_change(season, week, "after you set your picks", recompute, echo, msgs)
+        out = _after_change(season, week, "after you set your picks", recompute, echo, msgs)
+        out.messages[:0] = _entered_vs_model(chosen, out)
+        return out
+
+
+def confirm_picks(season: int, week: int) -> Outcome:
+    """You made the suggested changes in the league app: the model's picks are now your confirmed picks."""
+    with LOCK:
+        _load_league(season, week)
+        view = week_view(season, week)
+        picks = [Pick(p["game_id"], p["side"], p["team"], 0.0) for p in view["picks"]]
+        s = st.load_state(season, week)
+        st.set_confirmed(s, picks, at=st.now_iso())
+        st.save_state(season, week, s)
+        teams = ", ".join(p.team for p in picks) or "none"
+        return Outcome(view=week_view(season, week),
+                       messages=[f"Noted: your picks in the app are {teams}."])
 
 
 def lock(season: int, week: int, teams: list[str], *, recompute: bool = True, echo: bool = False) -> Outcome:
@@ -550,6 +742,8 @@ def lock(season: int, week: int, teams: list[str], *, recompute: bool = True, ec
             else:
                 msgs.append(f"Locked {t}.")
         ovr.save_overrides(season, week, ov)
+        for r, t, side in resolved:
+            _confirm_game(season, week, r.game_id, Pick(r.game_id, side, t, 0.0))
         return _after_change(season, week, "after you locked a pick", recompute, echo, msgs, notes)
 
 
@@ -637,6 +831,7 @@ def set_points(season: int, week: int, team: str, points, *, live: bool = False,
                 "team": t, "side": side, "auto": True, "added": cur is None,
                 "replaced": {"team": cur.team, "side": cur.side} if cur is not None and cur.team != t else None}
         ovr.save_overrides(season, week, ov)
+        _confirm_game(season, week, r.game_id, Pick(r.game_id, side, t, 0.0))   # the app shows points for it
         tag = "live" if live else "final"
         if cur is None:
             msgs = [f"{t} scored {val:+g} ({tag}); added {t} to your picks in the open slot."]
@@ -675,10 +870,11 @@ def clear(season: int, week: int, team: str, kinds: list[str] | None = None, *,
             if lk.get("auto"):
                 rep = lk.get("replaced")
                 if rep:
-                    _set_state_pick(season, week, r.game_id, Pick(r.game_id, rep["side"], rep["team"], 0.0))
+                    _set_state_pick(season, week, r.game_id, Pick(r.game_id, rep["side"], rep["team"], 0.0),
+                                    confirmed=True)
                     msgs.append(f"Put {rep['team']} back as your pick in that game.")
                 elif lk.get("added"):
-                    _set_state_pick(season, week, r.game_id, None)
+                    _set_state_pick(season, week, r.game_id, None, confirmed=True)
                     msgs.append(f"Removed {lk['team']} from your picks (it was added when you entered its points).")
             else:
                 _set_state_pick(season, week, r.game_id, Pick(r.game_id, lk["side"], lk["team"], 0.0))
@@ -707,18 +903,92 @@ def score_week(season: int, week: int, refresh: bool = True) -> dict:
             "warnings": _warnings(picks, ov, league)}
 
 
-def refresh_history(seasons: list[int] | None = None) -> int:
-    """Recompute and store the record for every week that has league lines. Returns weeks updated."""
+def _league_weeks(seasons: list[int] | None = None) -> list[tuple[int, int]]:
+    out = []
+    for path in sorted(config.LEAGUE_DIR.glob("*_wk*.csv")):
+        try:
+            season = int(path.stem.split("_wk")[0])
+            week = int(path.stem.split("_wk")[1])
+        except ValueError:
+            continue
+        if seasons and season not in seasons:
+            continue
+        out.append((season, week))
+    return out
+
+
+def results_info() -> dict:
+    """When the nflverse schedule and results were last downloaded."""
+    path = config.CACHE_DIR / "games.csv"
+    try:
+        at = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat(timespec="seconds")
+    except OSError:
+        at = None
+    return {"downloaded_at": at, "offline": bool(config.OFFLINE)}
+
+
+def refresh_results() -> tuple[bool, str]:
+    """Download the nflverse schedule and results now instead of waiting out the 6 hour cache.
+
+    Returns (downloaded, message). Offline, or when the download fails, the
+    saved copy stays in use.
+    """
+    if config.OFFLINE:
+        return False, "Offline: using the saved nflverse results."
+    path = config.CACHE_DIR / "games.csv"
+    before = path.stat().st_mtime if path.exists() else None
+    try:
+        games(force=True)
+    except requests.RequestException as e:
+        return False, f"Couldn't download nflverse results ({type(e).__name__}); using the saved copy."
+    after = path.stat().st_mtime if path.exists() else None
+    if after is None or after == before:
+        return False, "Couldn't download nflverse results; using the saved copy."
+    return True, "Downloaded the latest nflverse results."
+
+
+def week_results(season: int, week: int) -> Outcome:
+    """Fetch nflverse results now and regrade the week (and its record)."""
+    _, msg = refresh_results()
+    with LOCK:
+        _load_league(season, week)
+        view = week_view(season, week)
+        history.upsert_week(view, only_if_changed=True)
+        return Outcome(view=view, messages=[msg])
+
+
+def sync_records(seasons: list[int] | None = None) -> int:
+    """Bring every unfinished week record up to date with its computed week. Returns weeks written.
+
+    Finals arrive from nflverse after the week's last update ran, so a record
+    would otherwise keep its live and open picks. Only the database is
+    written, and only when a value changed; complete records are left alone.
+    """
     n = 0
     with LOCK:
-        for path in sorted(config.LEAGUE_DIR.glob("*_wk*.csv")):
+        for season, week in _league_weeks(seasons):
+            rec = history.get_week(season, week)
+            if rec is not None and rec["complete"]:
+                continue
             try:
-                season = int(path.stem.split("_wk")[0])
-                week = int(path.stem.split("_wk")[1])
-            except ValueError:
+                view = week_view(season, week)
+            except (UserError, ValueError, KeyError):
                 continue
-            if seasons and season not in seasons:
-                continue
-            history.upsert_week(week_view(season, week))
-            n += 1
+            if history.upsert_week(view, only_if_changed=True):
+                n += 1
+    return n
+
+
+def refresh_history(seasons: list[int] | None = None, download: bool = False) -> int:
+    """Recompute and store the record for every week that has league lines and picks. Returns weeks updated.
+
+    ``download`` fetches the latest nflverse results first (unless offline).
+    """
+    if download:
+        refresh_results()
+    n = 0
+    with LOCK:
+        for season, week in _league_weeks(seasons):
+            if history.upsert_week(week_view(season, week)):
+                n += 1
     return n

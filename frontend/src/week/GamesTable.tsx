@@ -1,5 +1,6 @@
 import type { Game } from "../api/types";
 import { teamStyle } from "../components/Team";
+import { hasKickedOff } from "../lib/clock";
 import { fmtKickoff, fmtPoints, fmtSpread, teamSpread } from "../lib/format";
 
 export interface GameActions {
@@ -7,21 +8,35 @@ export interface GameActions {
   onEditLine: (game: Game) => void;
   onEditScore: (game: Game) => void;
   onLockToggle: (game: Game) => void;
+  /** Lock a team in a game you don't hold (asks which side). */
+  onLockOther?: (game: Game) => void;
 }
 
 interface Props extends GameActions {
   games: Game[];
   busy: boolean;
+  /** The ticking server clock, so a game shows as kicked off without a refetch. */
+  now?: string;
+}
+
+/** Kicked off per the last view, or per the clock since then. */
+export function gameStarted(g: Game, now?: string): boolean {
+  return g.locked || hasKickedOff(g.kickoff_utc, now);
+}
+
+/** The side the market moved toward, or null when it hasn't moved (edge 0 favours neither side). */
+export function bestTeam(g: Game): string | null {
+  return g.edge != null && g.edge > 0 ? g.best_team : null;
 }
 
 /** The team whose point of view a row's spreads are shown from. */
 export function viewTeam(g: Game): string {
-  return g.picked_team ?? g.best_team ?? g.home;
+  return g.picked_team ?? bestTeam(g) ?? g.home;
 }
 
 function TeamPickButton({ game, team, busy, onToggle }: { game: Game; team: string; busy: boolean; onToggle: () => void }) {
   const picked = game.picked_team === team;
-  const best = game.best_team === team;
+  const best = bestTeam(game) === team;
   return (
     <button
       type="button"
@@ -29,7 +44,13 @@ function TeamPickButton({ game, team, busy, onToggle }: { game: Game; team: stri
       style={teamStyle(team)}
       aria-pressed={picked}
       aria-label={`Pick ${team}`}
-      title={best ? `${team} is the side the market moved toward` : undefined}
+      title={
+        picked
+          ? `${team} is one of your picks: click to remove it`
+          : best
+            ? `${team} is the side the market moved toward`
+            : undefined
+      }
       disabled={busy}
       onClick={onToggle}
     >
@@ -39,13 +60,13 @@ function TeamPickButton({ game, team, busy, onToggle }: { game: Game; team: stri
   );
 }
 
-function ResultCell({ game, busy, onEdit }: { game: Game; busy: boolean; onEdit: () => void }) {
+function ResultCell({ game, busy, started, onEdit }: { game: Game; busy: boolean; started: boolean; onEdit: () => void }) {
   const r = game.result;
   const label = `Enter score for ${game.away} @ ${game.home}`;
   if (!r) {
     return (
       <button type="button" className="cell-btn muted" disabled={busy} onClick={onEdit} aria-label={label}>
-        {game.locked ? "enter score" : "—"}
+        {started ? "enter score" : "—"}
       </button>
     );
   }
@@ -65,7 +86,7 @@ function ResultCell({ game, busy, onEdit }: { game: Game; busy: boolean; onEdit:
   );
 }
 
-export function GamesTable({ games, busy, onToggleTeam, onEditLine, onEditScore, onLockToggle }: Props) {
+export function GamesTable({ games, busy, now, onToggleTeam, onEditLine, onEditScore, onLockToggle, onLockOther }: Props) {
   const sorted = [...games].sort((a, b) => a.kickoff_utc.localeCompare(b.kickoff_utc) || a.game_id.localeCompare(b.game_id));
   return (
     <div className="table-wrap">
@@ -89,22 +110,23 @@ export function GamesTable({ games, busy, onToggleTeam, onEditLine, onEditScore,
             const league = teamSpread(g.league_home_spread, isHome);
             const sheet = teamSpread(g.sheet_home_spread, isHome);
             const market = teamSpread(g.market_home_spread, isHome);
+            const started = gameStarted(g, now);
             return (
-              <tr key={g.game_id} className={`${g.locked ? "kicked" : ""} ${g.picked_team ? "is-picked" : ""}`} data-game={g.game_id}>
-                <td className="nowrap">
+              <tr key={g.game_id} className={`${started ? "kicked" : ""} ${g.picked_team ? "is-picked" : ""}`} data-game={g.game_id}>
+                <td className="nowrap c-kick">
                   {fmtKickoff(g.kickoff_utc)}
-                  {g.locked && <span className="badge badge-locked tiny">KICKED OFF</span>}
+                  {started && <span className="badge badge-locked tiny">KICKED OFF</span>}
                 </td>
-                <td className="nowrap matchup">
+                <td className="nowrap matchup c-game">
                   {g.away} <span className="muted">@</span> {g.home}
                 </td>
-                <td>
+                <td className="c-pick">
                   <div className="pick-btns">
                     <TeamPickButton game={g} team={g.away} busy={busy} onToggle={() => onToggleTeam(g, g.away)} />
                     <TeamPickButton game={g} team={g.home} busy={busy} onToggle={() => onToggleTeam(g, g.home)} />
                   </div>
                 </td>
-                <td className="nowrap">
+                <td className="nowrap c-line" data-label="League line">
                   <button
                     type="button"
                     className={`cell-btn ${g.line_overridden ? "overridden" : ""}`}
@@ -118,35 +140,52 @@ export function GamesTable({ games, busy, onToggleTeam, onEditLine, onEditScore,
                   </button>
                   {g.line_overridden && <span className="sheet-note">sheet {fmtSpread(sheet)}</span>}
                 </td>
-                <td className="nowrap" title={`${g.books} book${g.books === 1 ? "" : "s"}`}>
+                <td className="nowrap c-market" data-label="Market" title={`${g.books} book${g.books === 1 ? "" : "s"}`}>
                   {market == null ? "—" : `${vt} ${fmtSpread(market)}`}
                   {g.books > 0 && <span className="muted small"> ({g.books})</span>}
                 </td>
-                <td className="nowrap">
-                  {g.edge == null || g.best_team == null ? (
+                <td className="nowrap c-edge" data-label="Edge">
+                  {g.edge == null ? (
                     <span className="muted">—</span>
+                  ) : bestTeam(g) == null ? (
+                    <span className="edge zero" title="The market hasn't moved from the league line">
+                      0.0
+                    </span>
                   ) : (
-                    <span className={`edge ${g.edge > 0 ? "pos" : "zero"}`}>
+                    <span className="edge pos">
                       {fmtPoints(g.edge, 1)} <strong>{g.best_team}</strong>
                     </span>
                   )}
                 </td>
-                <td className="nowrap">
-                  <ResultCell game={g} busy={busy} onEdit={() => onEditScore(g)} />
+                <td className="nowrap c-result" data-label="Result">
+                  <ResultCell game={g} busy={busy} started={started} onEdit={() => onEditScore(g)} />
                 </td>
-                <td>
-                  {g.picked_team && (
+                <td className="c-lock">
+                  {g.picked_team ? (
                     <button
                       type="button"
                       className={`lock-btn ${g.lock ? "on" : ""}`}
                       aria-pressed={!!g.lock}
                       aria-label={`Lock ${g.picked_team}`}
-                      disabled={busy || (g.locked && !g.lock)}
-                      title={g.lock ? "Locked by you: click to unlock" : g.locked ? "Kicked off: locked by the league" : "Lock this pick"}
+                      disabled={busy || (started && !g.lock)}
+                      title={g.lock ? "Locked by you: click to unlock" : started ? "Kicked off: locked by the league" : "Lock this pick"}
                       onClick={() => onLockToggle(g)}
                     >
-                      {g.lock ? "Locked" : g.locked ? "Kicked off" : "Lock"}
+                      {g.lock ? "Locked" : started ? "Kicked off" : "Lock"}
                     </button>
+                  ) : (
+                    onLockOther && (
+                      <button
+                        type="button"
+                        className="lock-btn"
+                        aria-label={`Lock a team in ${g.away} @ ${g.home}`}
+                        disabled={busy || started}
+                        title={started ? "Kicked off: set your picks instead" : "Lock a team you don't hold yet: it takes a slot and the model plans around it"}
+                        onClick={() => onLockOther(g)}
+                      >
+                        Lock…
+                      </button>
+                    )
                   )}
                 </td>
               </tr>

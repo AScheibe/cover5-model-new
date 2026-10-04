@@ -4,10 +4,12 @@ import { api } from "../api/client";
 import type { Game, Pick, SnapshotGame, Snapshots } from "../api/types";
 import { errorText } from "../components/Toasts";
 import { fmtDateTime, fmtKickoff, fmtPoints, fmtSpread, teamSpread } from "../lib/format";
+import { viewTeam } from "./GamesTable";
 
 // Categorical series colours, validated for CVD separation on the navy panel.
 export const SERIES = ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#9085e9", "#e66767", "#008300"];
 const INK = "#a9b6d3";
+const LEAGUE = "#e8eefc";
 const GRID = "#22314f";
 
 interface Props {
@@ -138,12 +140,12 @@ function PicksEdgeChart({ picks, byId }: { picks: Pick[]; byId: Map<string, Snap
 }
 
 function GameChart({ sg, game }: { sg: SnapshotGame; game: Game | undefined }) {
-  const team = game?.best_team ?? game?.picked_team ?? sg.home;
+  const team = game ? viewTeam(game) : sg.home;
   const isHome = team === sg.home;
   const opp = isHome ? sg.away : sg.home;
   const league = teamSpread(sg.league_home_spread, isHome);
   const data = sg.series
-    .map((pt) => ({ t: new Date(pt.t).getTime(), market: teamSpread(pt.home_spread, isHome), league, books: pt.books }))
+    .map((pt) => ({ t: new Date(pt.t).getTime(), market: teamSpread(pt.home_spread, isHome), books: pt.books }))
     .filter((r) => r.market != null)
     .sort((a, b) => a.t - b.t);
   const values = data.map((d) => d.market as number).concat(league == null ? [] : [league]);
@@ -174,11 +176,18 @@ function GameChart({ sg, game }: { sg: SnapshotGame; game: Game | undefined }) {
               labelFormatter={(v) => fmtDateTime(new Date(Number(v)).toISOString())}
               formatter={(v: number, name: string) => [`${team} ${fmtSpread(v)}`, name]}
             />
-            <Legend wrapperStyle={{ fontSize: 12, color: INK }} />
+            <Legend
+              wrapperStyle={{ fontSize: 12, color: INK }}
+              payload={[
+                { value: "Market", type: "line", id: "market", color: SERIES[0] },
+                ...(league != null
+                  ? [{ value: `League line (frozen ${fmtSpread(league)})`, type: "plainline" as const, id: "league", color: LEAGUE, payload: { strokeDasharray: "5 4" } }]
+                  : []),
+              ]}
+            />
+            {/* A reference line spans the whole chart, so it shows even with a single snapshot. */}
+            {league != null && <ReferenceLine y={league} stroke={LEAGUE} strokeWidth={1.5} strokeDasharray="5 4" ifOverflow="extendDomain" className="league-ref" />}
             <Line type="stepAfter" dataKey="market" name="Market" stroke={SERIES[0]} strokeWidth={2} dot={data.length < 30 ? { r: 3 } : false} isAnimationActive={false} />
-            {league != null && (
-              <Line type="linear" dataKey="league" name={`League line (frozen ${fmtSpread(league)})`} stroke="#e8eefc" strokeWidth={1.5} strokeDasharray="5 4" dot={false} activeDot={false} isAnimationActive={false} />
-            )}
           </LineChart>
         </ResponsiveContainer>
       </div>

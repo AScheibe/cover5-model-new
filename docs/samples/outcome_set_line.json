@@ -270,6 +270,12 @@
       "line": "Week total: +8.0 live (1), +8.5 expected from line movement (4 open). Projected +16.5"
     },
     "diff": {
+      "changed": false,
+      "added": [],
+      "dropped": [],
+      "flipped": []
+    },
+    "todo": {
       "changed": true,
       "added": [
         "ARI"
@@ -277,7 +283,15 @@
       "dropped": [
         "CHI"
       ],
-      "flipped": []
+      "flipped": [],
+      "since": "2026-10-04T20:30:00+00:00",
+      "confirmed": [
+        "CLE",
+        "WAS",
+        "BAL",
+        "BUF",
+        "CHI"
+      ]
     },
     "warnings": [],
     "overrides": {
@@ -333,7 +347,8 @@
     "title": "Cover 5 wk4: picks changed",
     "body": "Sun Oct 04 05:05 PM ET  (after your line override)\n\nDO THIS:\n  - drop  CHI\n  + add   ARI +7* @ NYG (market +3, edge +4.0)\n\nCURRENT PICKS:\n  1. ARI +7* @ NYG (market +3, edge +4.0)\n  2. CLE -3 vs PIT (market -6, edge +3.0) [LIVE +8 (override)]\n  3. WAS -3 vs IND (market -5, edge +2.0)\n  4. BAL -3 vs TEN (market -4.5, edge +1.5)\n  5. BUF -3 vs NE (market -4, edge +1.0)\n\nNEXT UP (not picked):\n  CHI -3 vs NYJ (market -3.5, edge +0.5)\n  HOU -3 vs DAL (market -3, edge +0.0)\n  CIN -3 vs JAX (market -3, edge +0.0)\n\nWeek total: +8.0 live (1), +8.5 expected from line movement (4 open). Projected +16.5\n* league line set by your override",
     "changed": true,
-    "sent": false
+    "sent": false,
+    "failures": []
   },
   "messages": [
     "League line set: NYG -7 vs ARI (sheet had NYG -3 vs ARI)"

@@ -1,6 +1,7 @@
 import type { Pick } from "../api/types";
 import { TeamBadge, teamStyle } from "../components/Team";
-import { fmtKickoff, fmtPoints, fmtSpread, signClass } from "../lib/format";
+import { hasKickedOff } from "../lib/clock";
+import { fmtDateTime, fmtKickoff, fmtPoints, fmtSpread, signClass } from "../lib/format";
 
 export interface PickActions {
   onLockToggle: (pick: Pick) => void;
@@ -25,11 +26,10 @@ export function statusBadges(p: Pick): { text: string; cls: string }[] {
   return out;
 }
 
-/** `locked` without a user lock means kicked off; with one, compare the clock. */
+/** `locked` without a user lock means kicked off; otherwise compare the (ticking) clock. */
 export function pickKickedOff(p: Pick, now?: string): boolean {
   if (p.locked && !p.manual) return true;
-  const t = now ? new Date(now).getTime() : Date.now();
-  return new Date(p.kickoff_utc).getTime() <= t;
+  return hasKickedOff(p.kickoff_utc, now);
 }
 
 export function PickTile({ pick, busy, now, onLockToggle, onPoints, onRemove }: { pick: Pick; busy: boolean; now?: string } & PickActions) {
@@ -56,7 +56,7 @@ export function PickTile({ pick, busy, now, onLockToggle, onPoints, onRemove }: 
         )}
       </div>
       <div className="pick-meta">
-        Market {fmtSpread(pick.market_spread)} · edge {fmtPoints(pick.edge, 1)} · {fmtKickoff(pick.kickoff_utc)}
+        Market {fmtSpread(pick.market_spread)} · edge {fmtPoints(pick.edge, 1)} · <span className="nowrap">{fmtKickoff(pick.kickoff_utc)}</span>
         {pick.source !== "edge" && pick.source !== "nflverse" && <span className="pick-src"> · {pick.source}</span>}
       </div>
       <div className="pick-badges">
@@ -83,7 +83,18 @@ export function PickTile({ pick, busy, now, onLockToggle, onPoints, onRemove }: 
             Lock
           </button>
         )}
-        <button type="button" className="btn btn-xs" disabled={busy} onClick={() => onPoints(pick)} aria-label={`Enter points for ${pick.team}`}>
+        <button
+          type="button"
+          className="btn btn-xs"
+          disabled={busy || !started}
+          title={
+            started
+              ? "Enter the points the league app shows for this pick"
+              : `Points can be entered once the game kicks off (${fmtDateTime(pick.kickoff_utc)}). If the schedule's kickoff time is wrong, use the game's score in the table.`
+          }
+          onClick={() => onPoints(pick)}
+          aria-label={`Enter points for ${pick.team}`}
+        >
           Points
         </button>
         <button type="button" className="btn btn-xs btn-ghost" disabled={busy} onClick={() => onRemove(pick)} aria-label={`Remove ${pick.team} from picks`}>

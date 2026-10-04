@@ -1,7 +1,7 @@
 import { useEffect, useId, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import type { ScheduleWeek, SchedulerStatus, WeekView } from "../api/types";
+import type { ResultsInfo, ScheduleWeek, SchedulerStatus, WeekView } from "../api/types";
 import { SchedulerPill } from "../components/SchedulerPill";
 import { Spinner } from "../components/Spinner";
 import { fmtAgo, fmtDateTime, fmtShortDate } from "../lib/format";
@@ -15,6 +15,15 @@ interface Props {
   scheduler: SchedulerStatus | null | undefined;
   onFetch: () => void;
   weeks: ScheduleWeek[] | null;
+  /** Fetch lines and push the alert even if nothing changed (CLI: update --force-alert). */
+  onSendAlert?: () => void;
+  /** Download nflverse results now. Shown once a game has kicked off. */
+  onRefreshResults?: () => void;
+  results?: ResultsInfo | null;
+  /** Some game of the week has kicked off (results matter). */
+  started?: boolean;
+  /** Every game has kicked off: there are no lines left to fetch. */
+  finished?: boolean;
 }
 
 export function useSchedule(season: number, version = 0) {
@@ -32,7 +41,7 @@ export function useSchedule(season: number, version = 0) {
   return weeks;
 }
 
-export function WeekHeader({ season, week, seasons, view, busy, scheduler, onFetch, weeks }: Props) {
+export function WeekHeader({ season, week, seasons, view, busy, scheduler, onFetch, weeks, onSendAlert, onRefreshResults, results, started, finished }: Props) {
   const navigate = useNavigate();
   const sid = useId();
   const wid = useId();
@@ -52,7 +61,7 @@ export function WeekHeader({ season, week, seasons, view, busy, scheduler, onFet
         <label htmlFor={sid} className="sr-only">
           Season
         </label>
-        <select id={sid} className="select" value={season} onChange={(e) => navigate(`/week/${e.target.value}/${week}`)}>
+        <select id={sid} className="select select-season" value={season} onChange={(e) => navigate(`/week/${e.target.value}/${week}`)}>
           {seasonList.map((s) => (
             <option key={s} value={s}>
               {s}
@@ -84,7 +93,42 @@ export function WeekHeader({ season, week, seasons, view, busy, scheduler, onFet
               Lines {view.market?.kind === "live" ? "live" : "fetched"} {fmtAgo(fetchedAt)}
               {fetchedAt && <span className="muted"> · {fmtDateTime(fetchedAt)}</span>}
             </span>
-            <button type="button" className="btn btn-primary" onClick={onFetch} disabled={busy != null}>
+            {started && onRefreshResults && (
+              <button
+                type="button"
+                className="btn"
+                onClick={onRefreshResults}
+                disabled={busy != null}
+                title={
+                  results?.offline
+                    ? "Offline: the saved nflverse results are used"
+                    : `Download nflverse scores now (last downloaded ${fmtDateTime(results?.downloaded_at)})`
+                }
+              >
+                {busy === "results" && <Spinner label="Downloading results" />}
+                Refresh results
+                {results?.downloaded_at && <span className="muted small"> · {fmtAgo(results.downloaded_at)}</span>}
+              </button>
+            )}
+            {onSendAlert && (
+              <button
+                type="button"
+                className="btn"
+                onClick={onSendAlert}
+                disabled={busy != null || finished}
+                title={finished ? "Every game has kicked off" : "Fetch lines and push the current picks to your phone, even if nothing changed"}
+              >
+                {busy === "alert" && <Spinner label="Sending" />}
+                Send alert
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={onFetch}
+              disabled={busy != null || finished}
+              title={finished ? "Every game has kicked off, so there are no lines left to fetch" : undefined}
+            >
               {busy === "update" ? <Spinner label="Fetching lines" /> : null}
               {busy === "update" ? "Fetching..." : "Fetch lines"}
             </button>

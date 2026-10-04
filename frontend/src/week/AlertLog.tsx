@@ -46,6 +46,11 @@ export function AlertLog({ season, week, version }: { season: number; week: numb
                   <span className="run-reason">{r.reason}</span>
                   {r.changed && <span className="badge badge-live">changed</span>}
                   {r.sent && <span className="badge badge-good">sent</span>}
+                  {!r.sent && r.warnings.some((w) => w.startsWith("Alert not delivered")) && (
+                    <span className="badge badge-bad" title={r.warnings.filter((w) => w.startsWith("Alert not delivered")).join("\n")}>
+                      not delivered
+                    </span>
+                  )}
                   <span className="run-title muted">{r.title}</span>
                 </summary>
                 <pre className="alert-body">{r.body}</pre>

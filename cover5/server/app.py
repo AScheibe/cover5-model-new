@@ -9,13 +9,24 @@ HTTP to those calls and errors to status codes:
 * request validation errors         -> 400 with a readable ``detail`` string
 * ``ValueError`` from history / settings -> 400
 
-GET endpoints never write files: they read under ``service.LOCK`` so they never
-see a week half written by the scheduler.
+GET endpoints never write the live week's files: they read under
+``service.LOCK`` so they never see a week half written by the scheduler. The
+one exception is the history database: ``GET /api/history`` and the export
+first bring unfinished week records up to date with nflverse results
+(``service.sync_records``), writing only the records whose values changed.
+
+The server is for this machine only. Requests whose Host isn't localhost or an
+IP address are refused (DNS rebinding), and so are writes (any method but
+GET/HEAD/OPTIONS) sent by a page from another site, judged by the Origin and
+Sec-Fetch-Site headers, so a web page can't spend odds API quota or change
+picks behind your back.
 """
 from __future__ import annotations
 
+import ipaddress
 import json
 import math
+import threading
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Literal, Optional, Union
@@ -31,6 +42,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from cover5 import config, history, service
 from cover5 import overrides as ovr
+from cover5.providers import redact
 from cover5 import state as st
 from cover5.league import league_path, load_week_file
 from cover5.schedule import current_week, week_slate
@@ -40,6 +52,7 @@ from cover5.server.scheduler import Scheduler
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FRONTEND_DIST = REPO_ROOT / "frontend" / "dist"
 DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
+SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 
 BUILD_HINT = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Cover 5</title>
@@ -98,6 +111,11 @@ class UpdateBody(_Body):
 
 class TeamsBody(_Body):
     teams: list[str]
+
+
+class PicksBody(_Body):
+    teams: list[str]
+    lock: Optional[list[str]] = None     # of those teams, the ones to lock (picked by hand)
 
 
 class LineBody(_Body):
@@ -186,6 +204,70 @@ def _history_totals(weeks: list[dict]) -> dict:
     }
 
 
+def _local_host(host_header: str) -> bool:
+    """localhost (or a *.localhost name), an IP address, or Starlette's TestClient host."""
+    h = host_header.strip().lower()
+    if h.startswith("["):                                   # [::1]:8765
+        h = h[1:h.find("]")] if "]" in h else h[1:]
+    elif h.count(":") == 1:
+        h = h.rsplit(":", 1)[0]
+    if h in ("localhost", "testserver") or h.endswith(".localhost"):
+        return True
+    try:
+        ipaddress.ip_address(h)
+        return True
+    except ValueError:
+        return False
+
+
+def _cross_site_write(request: Request) -> bool:
+    if request.method in SAFE_METHODS:
+        return False
+    origin = request.headers.get("origin")
+    host = request.headers.get("host", "")
+    if origin is not None:
+        return origin not in {f"http://{host}", f"https://{host}", *DEV_ORIGINS}
+    return request.headers.get("sec-fetch-site") == "cross-site"
+
+
+class BacktestJob:
+    """Runs the movement backtest (cover5.backtest_movement) in a thread; one at a time."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self.state, self.started_at, self.finished_at, self.error = "idle", None, None, None
+
+    def status(self) -> dict:
+        with self._lock:
+            return {"state": self.state, "started_at": self.started_at, "finished_at": self.finished_at,
+                    "error": self.error}
+
+    def start(self, out_path: Path) -> bool:
+        with self._lock:
+            if self.state == "running":
+                return False
+            self.state, self.error = "running", None
+            self.started_at, self.finished_at = datetime.now(timezone.utc).isoformat(timespec="seconds"), None
+        threading.Thread(target=self._run, args=(out_path,), name="cover5-backtest", daemon=True).start()
+        return True
+
+    def _run(self, out_path: Path) -> None:
+        try:
+            from cover5 import backtest_movement
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            backtest_movement.run(out_path=out_path)
+            state, err = "done", None
+        except Exception as e:  # noqa: BLE001
+            state, err = "error", f"{type(e).__name__}: {e}"
+        with self._lock:
+            self.state, self.error = state, err
+            self.finished_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _backtest_path() -> Path:
+    return config.DATA / "history" / "backtest_results.json"
+
+
 def _meta_seasons(current_season: int) -> list[int]:
     seasons = set(history.seasons()) | {current_season}
     for p in config.LEAGUE_DIR.glob("*_wk*.csv"):
@@ -212,9 +294,19 @@ def create_app(frontend_dist: Path | None = None, scheduler: Scheduler | None = 
                   redoc_url=None)
     app.state.scheduler = sched
     app.state.scheduler_allowed = scheduler_allowed
+    app.state.backtest = BacktestJob()
     app.add_middleware(CORSMiddleware, allow_origins=DEV_ORIGINS, allow_credentials=False,
                        allow_methods=["*"], allow_headers=["*"],
                        expose_headers=["Content-Disposition"])
+
+    @app.middleware("http")
+    async def _local_only(request: Request, call_next):
+        # Added after CORS, so it runs first: refused requests never reach a handler.
+        if not _local_host(request.headers.get("host", "")):
+            return JSONResponse({"detail": "This server only answers requests for localhost."}, status_code=403)
+        if _cross_site_write(request):
+            return JSONResponse({"detail": "Cross-site requests can't change Cover 5 data."}, status_code=403)
+        return await call_next(request)
 
     # ---- errors
     @app.exception_handler(service.ProviderError)
@@ -227,7 +319,7 @@ def create_app(frontend_dist: Path | None = None, scheduler: Scheduler | None = 
 
     @app.exception_handler(requests.RequestException)
     async def _network_error(request: Request, exc: requests.RequestException):
-        return JSONResponse({"detail": f"Network request failed: {exc}"}, status_code=502)
+        return JSONResponse({"detail": redact(f"Network request failed: {exc}")}, status_code=502)
 
     @app.exception_handler(settings_mod.SettingsError)
     async def _settings_error(request: Request, exc: settings_mod.SettingsError):
@@ -256,6 +348,7 @@ def create_app(frontend_dist: Path | None = None, scheduler: Scheduler | None = 
                 "webhook_set": bool(config.ALERT_WEBHOOK_URL),
             },
             "scheduler": sched.status(now),
+            "results": service.results_info(),
         })
 
     @app.get("/api/schedule/{season}")
@@ -327,8 +420,16 @@ def create_app(frontend_dist: Path | None = None, scheduler: Scheduler | None = 
         return ok(service.update(season, week, force_alert=b.force_alert).to_dict())
 
     @app.put("/api/week/{season}/{week}/picks")
-    def put_picks(season: int, week: int, body: TeamsBody):
-        return ok(service.set_picks(season, week, body.teams).to_dict())
+    def put_picks(season: int, week: int, body: PicksBody):
+        return ok(service.set_picks(season, week, body.teams, lock=body.lock).to_dict())
+
+    @app.post("/api/week/{season}/{week}/confirm")
+    def confirm(season: int, week: int):
+        return ok(service.confirm_picks(season, week).to_dict())
+
+    @app.post("/api/week/{season}/{week}/results")
+    def week_results(season: int, week: int):
+        return ok(service.week_results(season, week).to_dict())
 
     @app.post("/api/week/{season}/{week}/locks")
     def post_locks(season: int, week: int, body: TeamsBody):
@@ -361,17 +462,19 @@ def create_app(frontend_dist: Path | None = None, scheduler: Scheduler | None = 
     # ---- history
     @app.get("/api/history")
     def get_history(season: Optional[int] = None):
+        service.sync_records([season] if season else None)
         weeks = history.list_weeks(season)
         return ok({"seasons": history.seasons(), "weeks": weeks, "totals": _history_totals(weeks)})
 
     @app.post("/api/history/refresh")
     def refresh_history(body: Optional[RefreshBody] = Body(None)):
         season = body.season if body else None
-        n = service.refresh_history([season] if season else None)
-        return ok({"updated": n, "weeks": history.list_weeks(season)})
+        n = service.refresh_history([season] if season else None, download=True)
+        return ok({"updated": n, "weeks": history.list_weeks(season), "results": service.results_info()})
 
     @app.get("/api/history/export")
     def export_history():
+        service.sync_records()
         now = datetime.now(timezone.utc)
         payload = jsonable({"exported_at": now.isoformat(timespec="seconds"),
                             "weeks": history.list_weeks(), "runs": history.all_runs()})
@@ -389,12 +492,21 @@ def create_app(frontend_dist: Path | None = None, scheduler: Scheduler | None = 
     # ---- backtest
     @app.get("/api/backtest")
     def backtest():
-        p = config.DATA / "history" / "backtest_results.json"
+        p = _backtest_path()
         if not p.exists():
             return JSONResponse({"detail": f"No backtest results at {p}. Run the movement backtest "
                                            "(python -m cover5.backtest_movement) to create them."},
                                 status_code=404)
         return ok(json.loads(p.read_text()))
+
+    @app.get("/api/backtest/status")
+    def backtest_status():
+        return ok(app.state.backtest.status())
+
+    @app.post("/api/backtest/run")
+    def backtest_run():
+        started = app.state.backtest.start(_backtest_path())
+        return JSONResponse(jsonable({**app.state.backtest.status(), "started": started}), status_code=202)
 
     # ---- settings
     @app.get("/api/settings")

@@ -123,7 +123,7 @@ interface WeekRecord {                   // one row of history
 }
 
 interface Settings {
-  provider: "oddsapi" | "espn";
+  provider: "oddsapi" | "espn" | "file";   // file: COVER5_MARKET_FILE (offline demos, e2e tests)
   odds_api_key_set: boolean; odds_api_key_hint: string | null;   // e.g. "…1a2b"; never the key
   ntfy_topic: string; ntfy_server: string; webhook_url: string;
   swap_margin: number; flip_margin: number;

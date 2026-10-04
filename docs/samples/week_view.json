@@ -274,6 +274,24 @@
     "dropped": [],
     "flipped": []
   },
+  "todo": {
+    "changed": true,
+    "added": [
+      "ARI"
+    ],
+    "dropped": [
+      "CHI"
+    ],
+    "flipped": [],
+    "since": "2026-10-04T20:30:00+00:00",
+    "confirmed": [
+      "CLE",
+      "WAS",
+      "BAL",
+      "BUF",
+      "CHI"
+    ]
+  },
   "warnings": [],
   "overrides": {
     "lines": [

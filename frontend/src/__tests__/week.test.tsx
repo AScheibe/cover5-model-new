@@ -52,7 +52,7 @@ describe("picks strip", () => {
     expect(within(total).getByText("+8.0")).toBeInTheDocument();
     const banner = screen.getByRole("region", { name: "Do this" });
     expect(within(banner).getByText("Drop")).toBeInTheDocument();
-    expect(within(banner).getByText("CHI")).toBeInTheDocument();
+    expect(within(banner).getByText("CHI -3 vs NYJ")).toBeInTheDocument();
     expect(within(banner).getByText(/ARI \+7 @ NYG \(market \+3, edge \+4.0\)/)).toBeInTheDocument();
     expect(within(banner).getByText(/after your line override/)).toBeInTheDocument();
   });

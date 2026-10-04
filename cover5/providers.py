@@ -7,6 +7,7 @@ can be unit tested on saved JSON.
 from __future__ import annotations
 
 import json
+import re
 import statistics
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
@@ -35,6 +36,24 @@ class MarketLine:
         return d
 
 
+# --------------------------------------------------------------------------- secrets
+_KEY_PARAM = re.compile(r"(api_?key=)[^&\s'\"]+", re.IGNORECASE)
+
+
+def redact(text, *secrets: str) -> str:
+    """``text`` with the odds API key (and any ``secrets``) masked.
+
+    The Odds API takes its key as a query parameter, and requests puts the
+    full URL in its error messages, so any error text can carry the key.
+    Everything that reaches a user, a log or an API response goes through this.
+    """
+    s = str(text)
+    for k in (config.ODDS_API_KEY, *secrets):
+        if k:
+            s = s.replace(k, "***")
+    return _KEY_PARAM.sub(r"\1***", s)
+
+
 # --------------------------------------------------------------------------- Odds API
 ODDS_API_URL = "https://api.the-odds-api.com/v4/sports/americanfootball_nfl/odds"
 
@@ -43,12 +62,20 @@ def fetch_oddsapi(api_key: str | None = None) -> list[MarketLine]:
     key = api_key or config.ODDS_API_KEY
     if not key:
         raise RuntimeError("ODDS_API_KEY is not set")
-    r = requests.get(
-        ODDS_API_URL,
-        params={"apiKey": key, "regions": "us", "markets": "spreads", "oddsFormat": "american"},
-        timeout=30,
-    )
-    r.raise_for_status()
+    try:
+        r = requests.get(
+            ODDS_API_URL,
+            params={"apiKey": key, "regions": "us", "markets": "spreads", "oddsFormat": "american"},
+            timeout=30,
+        )
+        r.raise_for_status()
+    except requests.HTTPError as e:
+        code = e.response.status_code if e.response is not None else "?"
+        hint = " (the API key was rejected)" if code in (401, 403) else ""
+        raise RuntimeError(f"The Odds API returned HTTP {code}{hint}") from None
+    except requests.RequestException as e:
+        # ``from None``: the original exception's text holds the URL with the key.
+        raise RuntimeError(f"The Odds API request failed: {redact(e, key)}") from None
     remaining = r.headers.get("x-requests-remaining")
     if remaining is not None:
         print(f"[oddsapi] requests remaining this month: {remaining}")

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import type { Game, Pick } from "../api/types";
@@ -6,12 +6,13 @@ import { ConfirmDialog } from "../components/Dialog";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { useMeta } from "../components/MetaContext";
 import { Loading } from "../components/Spinner";
+import { useServerNow } from "../lib/clock";
 import { replacePick, togglePick } from "../lib/picks";
 import { pickLabel, teamSpread } from "../lib/format";
 import { AlertLog } from "../week/AlertLog";
 import { DoThis } from "../week/DoThis";
-import { GamesTable } from "../week/GamesTable";
-import { LineDialog, PointsDialog, ReplaceDialog, ScoreDialog } from "../week/dialogs";
+import { GamesTable, gameStarted } from "../week/GamesTable";
+import { LineDialog, LockPickDialog, PointsDialog, ReplaceDialog, ReseedDialog, ScoreDialog } from "../week/dialogs";
 import { MovementChart } from "../week/MovementChart";
 import { PicksStrip, pickKickedOff } from "../week/PicksStrip";
 import { SetupWeek } from "../week/SetupWeek";
@@ -22,8 +23,10 @@ import { WeekHeader, useSchedule } from "../week/WeekHeader";
 type DialogState =
   | { kind: "line"; game: Game }
   | { kind: "score"; game: Game }
-  | { kind: "points"; pick: Pick }
+  | { kind: "points"; pick: Pick; forced?: boolean }
   | { kind: "replace"; team: string; game: Game }
+  | { kind: "lockpick"; game: Game }
+  | { kind: "reseed" }
   | { kind: "confirm"; title: string; message: string; confirmLabel: string; action: () => void }
   | null;
 
@@ -61,50 +64,85 @@ export function WeekPage() {
   return <WeekScreen key={`${season}-${week}`} season={season} week={week} />;
 }
 
+/** "IND -3.5 @ WAS" for either team of a game, from the frozen league line. */
+function teamLabel(game: Game, team: string): string {
+  const isHome = team === game.home;
+  return pickLabel(team, isHome ? game.away : game.home, teamSpread(game.league_home_spread, isHome), isHome);
+}
+
 function WeekScreen({ season, week }: { season: number; week: number }) {
-  const { meta } = useMeta();
+  const { meta, refresh: refreshMeta } = useMeta();
   const { view, loadError, busy, version, reload, run } = useWeek(season, week);
   const weeks = useSchedule(season, version);
   const [dialog, setDialog] = useState<DialogState>(null);
-
-  // A background scheduler update changes last_update_at; pick it up when idle.
-  const lastUpdate = meta?.scheduler.last_update_at ?? null;
-  const seenUpdate = useRef(lastUpdate);
-  useEffect(() => {
-    if (lastUpdate !== seenUpdate.current) {
-      seenUpdate.current = lastUpdate;
-      if (busy == null && dialog == null) void reload();
-    }
-  }, [lastUpdate, busy, dialog, reload]);
+  // The server's clock, ticking: kickoff-dependent UI updates without a refetch.
+  const now = useServerNow(view?.now);
 
   const nPicks = view?.n_picks ?? meta?.config.n_picks ?? 5;
   const picks = view?.picks ?? [];
   const games = view?.games ?? [];
   const isBusy = busy != null;
+  const started = (g: Game) => gameStarted(g, now);
+  const anyStarted = games.some(started);
+  const allStarted = games.length > 0 && games.every(started);
+
+  // Reload when idle after a background update (the scheduler, the CLI) or a
+  // kickoff. A reload that comes due while a dialog is open or a request runs
+  // waits until both are done instead of being dropped.
+  const lastUpdate = meta?.scheduler.last_update_at ?? null;
+  const seenUpdate = useRef(lastUpdate);
+  const pendingReload = useRef(false);
+  const reloadedForKick = useRef<string | null>(null);
+  const nextKick = useMemo(() => {
+    if (!view?.now) return null;
+    const t0 = new Date(view.now).getTime();
+    const later = games.map((g) => g.kickoff_utc).filter((k) => new Date(k).getTime() > t0);
+    return later.length ? later.reduce((a, b) => (new Date(a) < new Date(b) ? a : b)) : null;
+  }, [view?.now, games]);
+  useEffect(() => {
+    if (lastUpdate !== seenUpdate.current) {
+      seenUpdate.current = lastUpdate;
+      pendingReload.current = true;
+    }
+    if (nextKick && now && reloadedForKick.current !== nextKick && new Date(now).getTime() >= new Date(nextKick).getTime() + 5000) {
+      reloadedForKick.current = nextKick;
+      pendingReload.current = true;
+    }
+    if (pendingReload.current && busy == null && dialog == null) {
+      pendingReload.current = false;
+      void reload();
+    }
+  }, [lastUpdate, busy, dialog, reload, now, nextKick]);
+
   const close = () => setDialog(null);
-  const confirmKickoff = (what: string, action: () => void) =>
+  /** Changing a game that has kicked off: say exactly what will happen. */
+  const confirmKickoff = (title: string, what: string, confirmLabel: string, action: () => void) =>
     setDialog({
       kind: "confirm",
-      title: "This game has kicked off",
-      message: `${what} has kicked off; only do this if it matches the app.`,
-      confirmLabel: "Yes, it matches the app",
+      title,
+      message: `${what} The league app locks a pick at kickoff, so only do this if it matches your picks there.`,
+      confirmLabel,
       action,
     });
 
   const gameOf = (team: string) => games.find((g) => g.home === team || g.away === team);
 
-  /** PUT the full new set. Teams leaving the set that you locked are unlocked first, or the lock would keep them. */
-  const submitPicks = (teams: string[]) => {
+  /**
+   * PUT the full new set. `lock`: teams you picked by hand, locked so the model
+   * keeps them (it would otherwise swap a team it likes less straight back).
+   * Teams leaving the set that you locked are unlocked first, or the lock would keep them.
+   */
+  const submitPicks = (teams: string[], lock: string[] = []) => {
     const leaving = picks.filter((p) => p.manual && !teams.includes(p.team)).map((p) => p.team);
     close();
     void run("picks", async () => {
-      if (leaving.length === 0) return api.setPicks(season, week, teams);
+      if (leaving.length === 0) return api.setPicks(season, week, teams, lock);
       let first = () => api.unlock(season, week, leaving[0]!);
       for (const t of leaving.slice(1)) {
         const prev = first;
         first = () => chain(prev, () => api.unlock(season, week, t));
       }
-      return chain(first, () => api.setPicks(season, week, teams));
+      return chain(first, () => api.setPicks(season, week, teams, lock));
     });
   };
 
@@ -115,34 +153,69 @@ function WeekScreen({ season, week }: { season: number; week: number }) {
       setDialog({ kind: "replace", team, game });
       return;
     }
-    const go = () => submitPicks(res.teams);
-    if (game.locked) confirmKickoff(`${game.away} @ ${game.home}`, go);
-    else go();
+    const kicked = started(game);
+    const lock = res.action === "remove" || kicked ? [] : [team];
+    const go = () => submitPicks(res.teams, lock);
+    if (!kicked) return go();
+    const matchup = `${game.away} @ ${game.home} has kicked off.`;
+    if (res.action === "remove") {
+      const p = picks.find((x) => x.team === team);
+      confirmKickoff(`Remove ${team} from your picks?`, `${matchup} This removes ${p?.label ?? team} from your picks and its points from the week.`, `Remove ${team}`, go);
+    } else if (res.action === "switch") {
+      confirmKickoff(`Switch from ${res.from} to ${team}?`, `${matchup} This replaces ${res.from} with ${teamLabel(game, team)} in that game.`, `Switch to ${team}`, go);
+    } else {
+      confirmKickoff(`Add ${team} to your picks?`, `${matchup} This adds ${teamLabel(game, team)} in an open slot.`, `Add ${team}`, go);
+    }
   };
 
   const onReplace = (team: string, game: Game, out: Pick) => {
     const teams = replacePick(picks.map((p) => p.team), out.team, team);
-    const go = () => submitPicks(teams);
+    const go = () => submitPicks(teams, started(game) ? [] : [team]);
     const outGame = gameOf(out.team);
-    if (game.locked || pickKickedOff(out, view?.now) || outGame?.locked) {
-      const which = game.locked ? `${game.away} @ ${game.home}` : `${out.label}`;
-      confirmKickoff(which, go);
+    if (started(game) || pickKickedOff(out, now) || (outGame && started(outGame))) {
+      const which = started(game) ? `${game.away} @ ${game.home} has kicked off.` : `${out.label} has kicked off.`;
+      confirmKickoff(`Replace ${out.team} with ${team}?`, `${which} This replaces ${out.label} with ${teamLabel(game, team)}.`, `Replace ${out.team} with ${team}`, go);
     } else go();
   };
 
   const onRemovePick = (p: Pick) => {
     const go = () => submitPicks(picks.filter((x) => x.team !== p.team).map((x) => x.team));
-    if (pickKickedOff(p, view?.now)) confirmKickoff(p.label, go);
+    if (pickKickedOff(p, now))
+      confirmKickoff(`Remove ${p.team} from your picks?`, `${p.label} has kicked off. This removes it from your picks and its points from the week.`, `Remove ${p.team}`, go);
     else go();
   };
 
   const lockTeam = (team: string, locked: boolean) =>
     void run("lock", () => (locked ? api.unlock(season, week, team) : api.lock(season, week, [team])));
 
+  const header = (
+    <WeekHeader
+      season={season}
+      week={week}
+      seasons={meta?.seasons ?? []}
+      view={loadError && !view ? null : view}
+      busy={busy}
+      scheduler={meta?.scheduler}
+      weeks={weeks}
+      results={meta?.results}
+      started={anyStarted}
+      finished={allStarted}
+      onFetch={() => void run("update", () => api.update(season, week, {}))}
+      onSendAlert={() => void run("alert", () => api.update(season, week, { force_alert: true }))}
+      onRefreshResults={() =>
+        void run("results", async () => {
+          const o = await api.results(season, week);
+          void refreshMeta(); // the header shows when results were last downloaded
+          return o;
+        })
+      }
+    />
+  );
+
   if (loadError && !view) {
     return (
       <>
-        <WeekHeader season={season} week={week} seasons={meta?.seasons ?? []} view={null} busy={busy} scheduler={meta?.scheduler} onFetch={() => {}} weeks={weeks} />
+        {header}
         <div className="panel empty-state">
           <h2>Couldn't load {season} week {week}</h2>
           <p className="field-error">{loadError}</p>
@@ -154,18 +227,11 @@ function WeekScreen({ season, week }: { season: number; week: number }) {
     );
   }
 
+  const scorePick = dialog?.kind === "score" ? picks.find((p) => p.game_id === dialog.game.game_id) : undefined;
+
   return (
     <>
-      <WeekHeader
-        season={season}
-        week={week}
-        seasons={meta?.seasons ?? []}
-        view={view}
-        busy={busy}
-        scheduler={meta?.scheduler}
-        weeks={weeks}
-        onFetch={() => void run("update", () => api.update(season, week, {}))}
-      />
+      {header}
       {!view ? (
         <Loading what={`week ${week}`} />
       ) : !view.has_league_file ? (
@@ -177,18 +243,27 @@ function WeekScreen({ season, week }: { season: number; week: number }) {
           onInit={(useMarket) => void run("init", () => api.init(season, week, { use_market: useMarket }))}
         />
       ) : (
-        <div className="week-grid">
-          <DoThis lastChange={view.last_change} pending={view.diff} picks={picks} />
+        <div className="week-grid" aria-busy={isBusy}>
+          <DoThis
+            todo={view.todo}
+            lastChange={view.last_change}
+            picks={picks}
+            games={games}
+            now={now}
+            busy={isBusy}
+            confirming={busy === "confirm"}
+            onConfirm={() => void run("confirm", () => api.confirm(season, week))}
+          />
           <PicksStrip
             picks={picks}
             nPicks={nPicks}
             busy={isBusy}
-            now={view.now}
+            now={now}
             onLockToggle={(p) => lockTeam(p.team, p.manual)}
             onPoints={(p) => setDialog({ kind: "points", pick: p })}
             onRemove={onRemovePick}
           />
-          {view.summary && <SummaryBar summary={view.summary} />}
+          {view.summary && <SummaryBar summary={view.summary} picks={picks} now={now} />}
           {view.warnings && view.warnings.length > 0 && (
             <section className="panel warnings" aria-label="Warnings">
               <h2>Warnings</h2>
@@ -203,33 +278,22 @@ function WeekScreen({ season, week }: { season: number; week: number }) {
             <div className="panel-head">
               <h2>Games</h2>
               <span className="muted small">
-                Click a team to pick it, a line to correct it, a result to enter a score. Spreads are from the named team's view.
+                Click a team to record it as one of your picks (it is locked so the model keeps it), a line to correct it, a result to enter a
+                score. Spreads are from the named team's view.
               </span>
             </div>
             <GamesTable
               games={games}
               busy={isBusy}
+              now={now}
               onToggleTeam={onToggleTeam}
               onEditLine={(g) => setDialog({ kind: "line", game: g })}
               onEditScore={(g) => setDialog({ kind: "score", game: g })}
               onLockToggle={(g) => g.picked_team && lockTeam(g.picked_team, !!g.lock)}
+              onLockOther={(g) => setDialog({ kind: "lockpick", game: g })}
             />
             <div className="table-foot">
-              <button
-                type="button"
-                className="link-btn small"
-                disabled={isBusy}
-                onClick={() =>
-                  setDialog({
-                    kind: "confirm",
-                    title: "Re-seed league lines?",
-                    message:
-                      "This replaces the league sheet with lines from the current market. Your line overrides still apply on top. Only do this if the sheet was seeded wrong.",
-                    confirmLabel: "Re-seed from market",
-                    action: () => void run("init", () => api.init(season, week, { overwrite: true, use_market: true })),
-                  })
-                }
-              >
+              <button type="button" className="link-btn small" disabled={isBusy} onClick={() => setDialog({ kind: "reseed" })}>
                 Re-seed league lines...
               </button>
             </div>
@@ -263,7 +327,7 @@ function WeekScreen({ season, week }: { season: number; week: number }) {
       {dialog?.kind === "score" && (
         <ScoreDialog
           game={dialog.game}
-          now={view?.now}
+          now={now}
           busy={isBusy}
           onClose={close}
           onSave={(body) => {
@@ -274,13 +338,15 @@ function WeekScreen({ season, week }: { season: number; week: number }) {
             close();
             void run("score", () => api.clearOverride(season, week, team, ["score"]));
           }}
+          onPoints={scorePick ? (force) => setDialog({ kind: "points", pick: scorePick, forced: force }) : undefined}
         />
       )}
       {dialog?.kind === "points" && (
         <PointsDialog
           pick={dialog.pick}
-          now={view?.now}
+          now={now}
           busy={isBusy}
+          forced={dialog.forced}
           hasOverride={(view?.overrides?.points ?? []).some((o) => o.game_id === dialog.pick.game_id)}
           onClose={close}
           onSave={(body) => {
@@ -296,16 +362,32 @@ function WeekScreen({ season, week }: { season: number; week: number }) {
       {dialog?.kind === "replace" && (
         <ReplaceDialog
           incoming={dialog.team}
-          incomingLabel={pickLabel(
-            dialog.team,
-            dialog.team === dialog.game.home ? dialog.game.away : dialog.game.home,
-            teamSpread(dialog.game.league_home_spread, dialog.team === dialog.game.home),
-            dialog.team === dialog.game.home,
-          )}
+          incomingLabel={teamLabel(dialog.game, dialog.team)}
           picks={picks}
           busy={isBusy}
           onClose={close}
           onChoose={(out) => onReplace(dialog.team, dialog.game, out)}
+        />
+      )}
+      {dialog?.kind === "lockpick" && (
+        <LockPickDialog
+          game={dialog.game}
+          busy={isBusy}
+          onClose={close}
+          onLock={(team) => {
+            close();
+            void run("lock", () => api.lock(season, week, [team]));
+          }}
+        />
+      )}
+      {dialog?.kind === "reseed" && (
+        <ReseedDialog
+          busy={isBusy}
+          onClose={close}
+          onReseed={(useMarket) => {
+            close();
+            void run("init", () => api.init(season, week, { overwrite: true, use_market: useMarket }));
+          }}
         />
       )}
       {dialog?.kind === "confirm" && (

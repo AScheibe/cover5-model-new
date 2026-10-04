@@ -86,28 +86,53 @@ def format_alert(season: int, week: int, picks: list[Pick], diff: dict, board: p
     return title, "\n".join(lines)
 
 
-def send(title: str, body: str, force: bool = False, changed: bool = True, echo: bool = True) -> bool:
-    """Push to ntfy/webhook only when picks changed (or force). Returns True if a
-    push was attempted on at least one configured channel. ``echo`` prints it."""
+def _failure(channel: str, e: Exception | None = None, status: int | None = None) -> str:
+    """A delivery failure without secrets: the URL (webhook token, ntfy topic) never appears."""
+    if status is not None:
+        return f"{channel}: the server answered HTTP {status}"
+    return f"{channel}: {type(e).__name__} (could not reach the server)"
+
+
+def deliver(title: str, body: str, force: bool = False, changed: bool = True,
+            echo: bool = True) -> tuple[bool, list[str]]:
+    """Push to ntfy/webhook only when picks changed (or force).
+
+    Returns ``(sent, failures)``: ``sent`` is True only if at least one
+    configured channel accepted the message (HTTP 2xx); ``failures`` has one
+    line per channel that didn't, safe to show and store. ``echo`` prints it.
+    """
     if echo:
         print(title)
         print(body)
     if not (changed or force):
-        return False
-    sent = False
+        return False, []
+    sent, failures = False, []
     if config.NTFY_TOPIC:
-        sent = True
         try:
-            requests.post(f"{config.NTFY_SERVER}/{config.NTFY_TOPIC}", data=body.encode(),
-                          headers={"Title": title, "Priority": "high" if changed else "default",
-                                   "Tags": "football"}, timeout=15)
+            r = requests.post(f"{config.NTFY_SERVER}/{config.NTFY_TOPIC}", data=body.encode(),
+                              headers={"Title": title, "Priority": "high" if changed else "default",
+                                       "Tags": "football"}, timeout=15)
+            if r.ok:
+                sent = True
+            else:
+                failures.append(_failure("ntfy", status=r.status_code))
         except requests.RequestException as e:
-            print(f"[alerts] ntfy failed: {e}")
+            failures.append(_failure("ntfy", e))
     if config.ALERT_WEBHOOK_URL:
-        sent = True
         try:
             text = f"*{title}*\n```\n{body}\n```"
-            requests.post(config.ALERT_WEBHOOK_URL, json={"text": text, "content": text}, timeout=15)
+            r = requests.post(config.ALERT_WEBHOOK_URL, json={"text": text, "content": text}, timeout=15)
+            if r.ok:
+                sent = True
+            else:
+                failures.append(_failure("webhook", status=r.status_code))
         except requests.RequestException as e:
-            print(f"[alerts] webhook failed: {e}")
-    return sent
+            failures.append(_failure("webhook", e))
+    for f in failures:
+        print(f"[alerts] delivery failed: {f}")
+    return sent, failures
+
+
+def send(title: str, body: str, force: bool = False, changed: bool = True, echo: bool = True) -> bool:
+    """``deliver`` without the failure details: True if a channel accepted the push."""
+    return deliver(title, body, force=force, changed=changed, echo=echo)[0]

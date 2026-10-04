@@ -18,6 +18,13 @@ Rules (docs/api.md, "Scheduler"):
    ``interval_minutes``.
 3. The update records the run and refreshes the week's history record
    (``service.update`` does both).
+4. On every tick, whether or not market updates are on, unfinished week
+   records are synced with the computed week (``service.sync_records``) when
+   the nflverse file changed or ``RECORDS_EVERY`` passed. That is how Monday
+   night and late finals reach History after the week's last update ran.
+   When a game should be over (kickoff + ``GAME_LENGTH``) but nflverse has no
+   result for it, the results are downloaded again, at most every
+   ``RESULTS_RETRY``, instead of waiting out the 6 hour cache.
 """
 from __future__ import annotations
 
@@ -28,8 +35,9 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 
-from cover5 import service
+from cover5 import config, service
 from cover5 import state as st
+from cover5.providers import redact
 from cover5.league import league_path
 from cover5.schedule import current_week, week_slate
 from cover5.server import settings as settings_mod
@@ -38,6 +46,9 @@ ET = ZoneInfo("America/New_York")
 UTC = timezone.utc
 TICK_SECONDS = 60
 SUNDAY_WINDOW = (time(9, 0), time(13, 0))     # ET, [start, end)
+RECORDS_EVERY = timedelta(minutes=10)         # sync unfinished week records at least this often
+RESULTS_RETRY = timedelta(minutes=30)         # re-download nflverse at most this often while finals are due
+GAME_LENGTH = timedelta(hours=3, minutes=30)  # a game this long after kickoff should have a final
 
 
 @dataclass(frozen=True)
@@ -98,6 +109,16 @@ def due_action(now: datetime, week_info: WeekInfo, settings: dict,
     if force or last_update_at is None or now - last_update_at >= interval_at(now, settings):
         return "update"
     return None
+
+
+def results_due(games: pd.DataFrame, season: int, weeks: list[int], now: datetime) -> bool:
+    """True when a game of these weeks should be over (kicked off ``GAME_LENGTH`` ago, within
+    the last three days) but the nflverse file has no result for it yet."""
+    g = games[(games["season"] == season) & (games["week"].isin(weeks)) & (games["game_type"] == "REG")]
+    for k, res in zip(g["kickoff_utc"], g["result"]):
+        if pd.isna(res) and k + GAME_LENGTH <= now <= k + timedelta(days=3):
+            return True
+    return False
 
 
 def _sunday_window_starts(after: datetime, n: int = 2) -> list[datetime]:
@@ -175,6 +196,9 @@ class Scheduler:
         self._last_attempt: datetime | None = None
         self._last_result: str | None = None
         self._last_error: str | None = None
+        self._last_sync: datetime | None = None
+        self._sync_mark: str | None = None
+        self._last_results_try: datetime | None = None
 
     # ---- thread
     @property
@@ -199,7 +223,7 @@ class Scheduler:
             try:
                 self.tick()
             except Exception as e:  # noqa: BLE001  (tick already records errors; belt and braces)
-                self._record(error=f"{type(e).__name__}: {e}")
+                self._record(error=redact(f"{type(e).__name__}: {e}"))
             self._stop.wait(self.tick_seconds)
 
     # ---- work
@@ -213,11 +237,37 @@ class Scheduler:
         with self._tick_lock:
             now = now or datetime.now(UTC)
             try:
-                return self._tick(force, now)
+                out = self._tick(force, now)
             except Exception as e:  # noqa: BLE001
                 msg = f"{type(e).__name__}: {e}" if not isinstance(e, service.UserError) else str(e)
+                msg = redact(msg)          # a provider error can carry the odds API key in a URL
                 self._record(now=now, result=f"Failed: {msg}", error=msg)
-                return {"ran": False, "message": f"Failed: {msg}"}
+                out = {"ran": False, "message": f"Failed: {msg}"}
+            self.maintain_records(now, force=force)
+            return out
+
+    def maintain_records(self, now: datetime | None = None, force: bool = False) -> int:
+        """Keep unfinished week records in step with nflverse results (rule 4). Returns records written."""
+        now = now or datetime.now(UTC)
+        try:
+            g = service.games()
+            season, week = current_week(g, now)
+            info = service.results_info()
+            fresh = info["downloaded_at"] and now - datetime.fromisoformat(info["downloaded_at"]) < RESULTS_RETRY
+            if (not config.OFFLINE and not fresh and results_due(g, season, [week - 1, week], now)
+                    and (self._last_results_try is None or now - self._last_results_try >= RESULTS_RETRY)):
+                self._last_results_try = now
+                service.refresh_results()
+                info = service.results_info()
+            mark = info["downloaded_at"]
+            if (force or self._last_sync is None or mark != self._sync_mark
+                    or now - self._last_sync >= RECORDS_EVERY):
+                n = service.sync_records([season])
+                self._last_sync, self._sync_mark = now, mark
+                return n
+        except Exception as e:  # noqa: BLE001  (records must never stop the thread)
+            self._record(error=redact(f"Syncing records failed: {type(e).__name__}: {e}"))
+        return 0
 
     def _tick(self, force: bool, now: datetime) -> dict:
         s = settings_mod.load()
@@ -289,7 +339,7 @@ class Scheduler:
                 "running": self.running,
                 "last_tick": _iso(self._last_tick),
                 "last_update_at": _iso(last_update),
-                "last_result": self._last_result,
-                "last_error": self._last_error,
+                "last_result": redact(self._last_result) if self._last_result else None,
+                "last_error": redact(self._last_error) if self._last_error else None,
                 "next_due": _iso(nd),
             }

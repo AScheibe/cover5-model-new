@@ -104,6 +104,24 @@ export function HistoryPage() {
     }
   };
 
+  const [addWeek, setAddWeek] = useState("");
+  const untracked = Array.from({ length: 18 }, (_, i) => i + 1).filter((w) => !weeks.some((r) => r.week === w));
+  const addRecord = async () => {
+    const w = Number(addWeek);
+    if (season == null || !Number.isInteger(w) || w < 1) return;
+    setBusy(true);
+    try {
+      await api.updateRecord(season, w, {});
+      toasts.push({ kind: "success", text: `Added week ${w}. Fill in its standings and app points from the league app.` });
+      setAddWeek("");
+      await load();
+    } catch (e) {
+      toasts.error(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const seasons = Array.from(new Set([...(data?.seasons ?? []), ...(meta?.seasons ?? []), ...(season != null ? [season] : [])])).sort((a, b) => b - a);
   const t = data?.totals;
 
@@ -192,28 +210,28 @@ export function HistoryPage() {
                       const total = weekTotal(r);
                       return (
                         <tr key={`${r.season}-${r.week}`}>
-                          <td className="nowrap">
+                          <td className="nowrap c-week">
                             <Link to={`/week/${r.season}/${r.week}`} className="week-link">
                               Wk {r.week}
                             </Link>
                             {!r.complete && <span className="badge badge-open tiny">{r.n_live > 0 ? "live" : "open"}</span>}
                           </td>
-                          <td>
+                          <td className="c-picks">
                             <PickChips rec={r} />
                           </td>
-                          <td className={`num ${signClass(total)}`} title={`Updated ${fmtDateTime(r.updated_at)}`}>
+                          <td className={`num c-total ${signClass(total)}`} data-label="Total" title={`Updated ${fmtDateTime(r.updated_at)}`}>
                             <strong>{fmtPoints(total)}</strong>
                             {!r.complete && <span className="muted small"> proj {fmtPoints(r.projected, 1)}</span>}
                           </td>
-                          <td className="num">{fmtPoints(r.movement_edge, 1)}</td>
-                          <td className="nowrap">
+                          <td className="num c-edge" data-label="Edge">{fmtPoints(r.movement_edge, 1)}</td>
+                          <td className="nowrap c-rank" data-label="Week rank">
                             {cell(r, "week_rank", "int", "Week rank")}
                             <span className="muted"> of </span>
                             {cell(r, "entrants", "int", "Entrants")}
                           </td>
-                          <td>{cell(r, "overall_points", "number", "Overall points", (v) => String(v))}</td>
-                          <td>{cell(r, "overall_rank", "int", "Overall rank")}</td>
-                          <td>
+                          <td className="c-opts" data-label="Overall pts">{cell(r, "overall_points", "number", "Overall points", (v) => String(v))}</td>
+                          <td className="c-orank" data-label="Overall rank">{cell(r, "overall_rank", "int", "Overall rank")}</td>
+                          <td className="c-app" data-label="App pts">
                             {cell(r, "app_points", "number", "App points", (v) => fmtPoints(Number(v)))}
                             {r.app_points != null && r.complete && Math.abs(r.app_points - total) > 0.01 && (
                               <span className="badge badge-bad tiny" title="The app's score differs from the model's grading">
@@ -221,12 +239,38 @@ export function HistoryPage() {
                               </span>
                             )}
                           </td>
-                          <td className="notes">{cell(r, "notes", "text", "Notes")}</td>
+                          <td className="notes c-notes" data-label="Notes">{cell(r, "notes", "text", "Notes")}</td>
                         </tr>
                       );
                     })}
                   </tbody>
                 </table>
+              </div>
+            </section>
+          )}
+
+          {season != null && untracked.length > 0 && (
+            <section className="panel add-week" aria-label="Add a week">
+              <h2>Add a week</h2>
+              <p className="hint">
+                For a week you didn't track here (say, before you started using Cover 5): a record for its standings, app points and
+                notes only.
+              </p>
+              <div className="row gap">
+                <label htmlFor="add-week" className="field-label">
+                  Week
+                </label>
+                <select id="add-week" className="select" value={addWeek} onChange={(e) => setAddWeek(e.target.value)}>
+                  <option value="">Choose…</option>
+                  {untracked.map((w) => (
+                    <option key={w} value={w}>
+                      Week {w}
+                    </option>
+                  ))}
+                </select>
+                <button type="button" className="btn" disabled={busy || addWeek === ""} onClick={() => void addRecord()}>
+                  Add week
+                </button>
               </div>
             </section>
           )}

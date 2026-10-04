@@ -1,9 +1,11 @@
 import type {
+  BacktestStatus,
   HistoryResponse,
   Json,
   Meta,
   Outcome,
   OverrideKind,
+  ResultsInfo,
   Run,
   ScheduleWeek,
   SchedulerRunResult,
@@ -77,6 +79,10 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 }
 
 const w = (season: number, week: number) => `/api/week/${season}/${week}`;
+
+/** `force` enters a score or points for a game the schedule says hasn't kicked off. */
+export interface ScoreBody { team: string; team_points: number; opponent_points: number; live: boolean; force?: boolean }
+export interface PointsBody { team: string; points: number; live: boolean; force?: boolean }
 const enc = encodeURIComponent;
 
 export const api = {
@@ -88,14 +94,19 @@ export const api = {
     request<Outcome>("POST", `${w(s, wk)}/init`, body),
   update: (s: number, wk: number, body: { force_alert?: boolean } = {}) =>
     request<Outcome>("POST", `${w(s, wk)}/update`, body),
-  setPicks: (s: number, wk: number, teams: string[]) => request<Outcome>("PUT", `${w(s, wk)}/picks`, { teams }),
+  /** `lock`: teams of the set to lock as well (picked by hand, so the model keeps them). */
+  setPicks: (s: number, wk: number, teams: string[], lock: string[] = []) =>
+    request<Outcome>("PUT", `${w(s, wk)}/picks`, lock.length ? { teams, lock } : { teams }),
+  /** "I've made these changes": the model's picks become the picks you confirmed. */
+  confirm: (s: number, wk: number) => request<Outcome>("POST", `${w(s, wk)}/confirm`),
+  /** Download nflverse results now and regrade the week. */
+  results: (s: number, wk: number) => request<Outcome>("POST", `${w(s, wk)}/results`),
   lock: (s: number, wk: number, teams: string[]) => request<Outcome>("POST", `${w(s, wk)}/locks`, { teams }),
   unlock: (s: number, wk: number, team: string) => request<Outcome>("DELETE", `${w(s, wk)}/locks/${enc(team)}`),
   setLine: (s: number, wk: number, team: string, spread: number | "PK") =>
     request<Outcome>("PUT", `${w(s, wk)}/lines`, { team, spread }),
-  setScore: (s: number, wk: number, body: { team: string; team_points: number; opponent_points: number; live: boolean }) =>
-    request<Outcome>("PUT", `${w(s, wk)}/scores`, body),
-  setPoints: (s: number, wk: number, body: { team: string; points: number; live: boolean }) =>
+  setScore: (s: number, wk: number, body: ScoreBody) => request<Outcome>("PUT", `${w(s, wk)}/scores`, body),
+  setPoints: (s: number, wk: number, body: PointsBody) =>
     request<Outcome>("PUT", `${w(s, wk)}/points`, body),
   clearOverride: (s: number, wk: number, team: string, kinds: OverrideKind[] = []) => {
     const q = kinds.map((k) => `kind=${enc(k)}`).join("&");
@@ -108,12 +119,14 @@ export const api = {
   history: (season?: number) =>
     request<HistoryResponse>("GET", season == null ? "/api/history" : `/api/history?season=${season}`),
   refreshHistory: (season?: number) =>
-    request<{ updated: number; weeks: WeekRecord[] }>("POST", "/api/history/refresh", season == null ? {} : { season }),
+    request<{ updated: number; weeks: WeekRecord[]; results?: ResultsInfo }>("POST", "/api/history/refresh", season == null ? {} : { season }),
   updateRecord: (s: number, wk: number, fields: Partial<WeekRecordUserFields>) =>
     request<WeekRecord>("PUT", `/api/history/${s}/${wk}`, fields),
   exportUrl: "/api/history/export",
 
   backtest: () => request<Json>("GET", "/api/backtest"),
+  backtestStatus: () => request<BacktestStatus>("GET", "/api/backtest/status"),
+  runBacktest: () => request<BacktestStatus>("POST", "/api/backtest/run"),
 
   settings: () => request<Settings>("GET", "/api/settings"),
   saveSettings: (body: SettingsUpdate) => request<Settings>("PUT", "/api/settings", body),

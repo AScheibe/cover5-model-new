@@ -57,6 +57,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             body: a.body,
           });
         }
+        // A push that didn't reach the phone must never look sent.
+        if (a?.failures && a.failures.length > 0) {
+          push({ kind: "error", text: `Alert not delivered: ${a.failures.join("; ")}. Check the alert settings.` });
+        }
       },
     }),
     [push],

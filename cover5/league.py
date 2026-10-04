@@ -21,11 +21,15 @@ def league_path(season: int, week: int):
 
 
 def build_week_file(games: pd.DataFrame, season: int, week: int,
-                    market: list[MarketLine] | None, overwrite: bool = False) -> pd.DataFrame:
+                    market: list[MarketLine] | None, overwrite: bool = False,
+                    keep: dict[str, float] | None = None) -> pd.DataFrame:
     """Seed the week's league-line file from the schedule plus current market lines.
 
-    Falls back to the nflverse spread when the market has no number for a game,
-    and leaves the cell blank if neither exists so you notice and fill it in.
+    ``keep`` maps game_id to a home_spread that wins over everything (a re-seed
+    keeps the frozen line of every game that has kicked off). Otherwise it uses
+    the market, falls back to the nflverse spread when the market has no number
+    for a game, and leaves the cell blank if neither exists so you notice and
+    fill it in.
     """
     config.ensure_dirs()
     path = league_path(season, week)
@@ -35,7 +39,9 @@ def build_week_file(games: pd.DataFrame, season: int, week: int,
     by_pair = {(m.away, m.home): m.home_spread for m in (market or [])}
     rows = []
     for _, g in slate.iterrows():
-        hs = by_pair.get((g.away_team, g.home_team))
+        hs = (keep or {}).get(g.game_id)
+        if hs is None:
+            hs = by_pair.get((g.away_team, g.home_team))
         if hs is None and pd.notna(g.spread_line):
             hs = -float(g.spread_line)   # nflverse spread_line is expected home margin
         rows.append({

@@ -13,6 +13,40 @@ interface Props {
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+const RESTORE_TRIES = 200;     // x 50 ms: wait up to 10 s for the request a dialog started
+const RESTORE_EVERY_MS = 50;
+
+/**
+ * Give focus back to the element that opened a dialog. A dialog action
+ * usually starts a request, and every button is disabled while it runs, so a
+ * plain focus() on close lands on <body>. Retry until the opener is enabled
+ * again, unless focus has moved somewhere else meanwhile (another dialog, the
+ * user clicking on). If the opener is gone (the pick was removed), focus the
+ * page's main region instead of leaving it on <body>.
+ */
+export function restoreFocus(opener: HTMLElement | null, tries = RESTORE_TRIES): void {
+  if (!opener) return;
+  const attempt = (left: number) => {
+    const active = document.activeElement;
+    if (active && active !== document.body && active !== opener) return; // the user has moved on
+    if (!document.contains(opener)) {
+      const main = document.querySelector<HTMLElement>("main, [role='main']");
+      if (main) {
+        if (!main.hasAttribute("tabindex")) main.setAttribute("tabindex", "-1");
+        main.focus();
+      }
+      return;
+    }
+    const disabled = (opener as HTMLButtonElement).disabled === true || opener.getAttribute("aria-disabled") === "true";
+    if (!disabled) {
+      opener.focus();
+      if (document.activeElement === opener) return;
+    }
+    if (left > 0) window.setTimeout(() => attempt(left - 1), RESTORE_EVERY_MS);
+  };
+  attempt(tries);
+}
+
 /** Modal dialog: focus moves in, Tab is trapped, Escape closes, focus returns to the opener. */
 export function Dialog({ title, onClose, children, footer, size = "md", description }: Props) {
   const ref = useRef<HTMLDivElement>(null);
@@ -28,9 +62,7 @@ export function Dialog({ title, onClose, children, footer, size = "md", descript
       const auto = el.querySelector<HTMLElement>("[data-autofocus]") ?? el.querySelector<HTMLElement>(FOCUSABLE);
       (auto ?? el).focus();
     }
-    return () => {
-      if (opener && document.contains(opener)) opener.focus();
-    };
+    return () => restoreFocus(opener);
   }, []);
 
   const onKeyDown = (e: React.KeyboardEvent) => {

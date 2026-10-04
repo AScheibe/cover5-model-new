@@ -23,10 +23,13 @@ export function SchedulerPill({ status }: { status: SchedulerStatus | null | und
     status.last_result,
   ].filter(Boolean);
   return (
-    <span className={`pill ${status.running ? "pill-good" : "pill-warn"}`} title={bits.join(" · ")}>
+    <span
+      className={`pill ${status.running ? "pill-good" : "pill-warn"}`}
+      title={status.running ? bits.join(" · ") : "Not running in this server (started with --no-scheduler?). Fetch lines by hand."}
+    >
       <span className="dot" aria-hidden="true" />
       {status.running ? "Scheduler on" : "Scheduler stopped"}
-      {status.next_due && <span className="pill-sub"> · next {fmtKickoff(status.next_due)}</span>}
+      {status.running && status.next_due && <span className="pill-sub"> · next {fmtKickoff(status.next_due)}</span>}
     </span>
   );
 }

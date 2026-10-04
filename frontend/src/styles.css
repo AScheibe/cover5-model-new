@@ -304,7 +304,7 @@ td.num { text-align: right; white-space: nowrap; }
 /* settings */
 .settings { display: flex; flex-direction: column; gap: 14px; max-width: 820px; }
 .settings .panel h2 { margin-bottom: 4px; }
-.save-bar { position: sticky; bottom: 0; display: flex; justify-content: flex-end; gap: 8px; padding: 12px 0; background: linear-gradient(180deg, transparent, var(--bg) 40%); }
+.save-bar { position: sticky; bottom: 0; z-index: 5; display: flex; justify-content: flex-end; gap: 8px; padding: 10px 0; background: var(--bg); border-top: 1px solid var(--line); box-shadow: 0 -8px 16px -8px rgba(0, 0, 0, 0.5); }
 .run-msg { color: var(--text-2); }
 
 /* dialog */
@@ -366,4 +366,62 @@ td.num { text-align: right; white-space: nowrap; }
   .fetched { flex-basis: 100%; order: 3; }
   .fetched .muted { display: none; }
   h1 { font-size: 20px; }
+  .week-nav .select-season { flex: 0 0 auto; min-width: 82px; }
+
+  /* Games table as one card per game: every control stays on screen, no sideways scroll. */
+  .games-table thead { display: none; }
+  .games-table, .games-table tbody { display: block; }
+  .games-table tr {
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-areas: "kick kick lock" "pick pick pick" "line market edge" "result result result";
+    gap: 8px 10px; padding: 10px 4px 10px 10px; border-bottom: 1px solid var(--line);
+  }
+  .games-table tr.is-picked { box-shadow: inset 3px 0 0 var(--green); }
+  .games-table tr.is-picked td:first-child { box-shadow: none; }
+  .games-table td { padding: 0; border: 0; min-width: 0; }
+  .games-table .c-kick { grid-area: kick; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .games-table .c-game { display: none; }
+  .games-table .c-pick { grid-area: pick; }
+  .games-table .c-pick .pick-btn { flex: 1 1 0; height: 36px; font-size: 14px; }
+  .games-table .c-line { grid-area: line; }
+  .games-table .c-market { grid-area: market; }
+  .games-table .c-edge { grid-area: edge; }
+  .games-table .c-result { grid-area: result; white-space: normal; }
+  .games-table .c-lock { grid-area: lock; justify-self: end; }
+  .games-table td[data-label]::before, .history-table td[data-label]::before {
+    content: attr(data-label); display: block; font-size: 10.5px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 2px;
+  }
+  .games-table .cell-btn { margin: 0; padding: 2px 0; }
+  .games-table .c-line, .games-table .c-market, .games-table .c-edge { white-space: normal; }
+
+  /* History records as one card per week, standings editable without scrolling sideways. */
+  .history-table thead { display: none; }
+  .history-table, .history-table tbody { display: block; }
+  .history-table tr {
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-areas: "week week total" "picks picks picks" "edge rank app" "opts orank orank" "notes notes notes";
+    gap: 8px 10px; padding: 12px 4px; border-bottom: 1px solid var(--line);
+  }
+  .history-table td { padding: 0; border: 0; min-width: 0; text-align: left; }
+  .history-table .c-week { grid-area: week; display: flex; align-items: center; gap: 6px; }
+  .history-table .c-picks { grid-area: picks; }
+  .history-table .c-total { grid-area: total; text-align: right; }
+  .history-table .c-total::before { text-align: right; }
+  .history-table .c-edge { grid-area: edge; }
+  .history-table .c-rank { grid-area: rank; white-space: normal; }
+  .history-table .c-app { grid-area: app; }
+  .history-table .c-opts { grid-area: opts; }
+  .history-table .c-orank { grid-area: orank; }
+  .history-table .c-notes { grid-area: notes; min-width: 0; }
+  .history-table .cell-btn { margin: 0; padding: 2px 0; }
+  .history-table .input-sm.input-text { width: 100%; }
 }
+
+/* ---- review fixes: Do this foot, not-started notice, unsaved settings, add week */
+.do-this-foot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
+.notice { border: 1px dashed var(--line-2); border-radius: 8px; padding: 8px 10px; }
+.notice .hint { margin: 0 0 6px; }
+.unsaved { color: var(--amber); font-weight: 700; margin-right: auto; }
+.add-week .row { align-items: center; flex-wrap: wrap; }
+.add-week .field-label { margin: 0; }

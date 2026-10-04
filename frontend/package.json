@@ -8,7 +8,9 @@
     "build": "tsc --noEmit -p . && vite build",
     "preview": "vite preview",
     "test": "vitest",
-    "typecheck": "tsc --noEmit -p ."
+    "typecheck": "tsc --noEmit -p .",
+    "e2e": "npm run build && playwright test",
+    "e2e:only": "playwright test"
   },
   "dependencies": {
     "react": "^18.3.1",
@@ -17,6 +19,7 @@
     "recharts": "^2.15.4"
   },
   "devDependencies": {
+    "@playwright/test": "1.56.1",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.3",

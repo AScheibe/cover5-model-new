@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, api } from "../api/client";
-import type { Json } from "../api/types";
-import { Loading } from "../components/Spinner";
-import { errorText } from "../components/Toasts";
+import type { BacktestStatus, Json } from "../api/types";
+import { Loading, Spinner } from "../components/Spinner";
+import { errorText, useToasts } from "../components/Toasts";
+import { fmtDateTime } from "../lib/format";
 
 type Obj = { [k: string]: Json };
 
@@ -140,35 +141,88 @@ export function JsonSection({ name, value, depth = 0 }: { name: string; value: J
   return null;
 }
 
-export function BacktestPage() {
+const POLL_MS = 1500;
+
+export function BacktestPage({ pollMs = POLL_MS }: { pollMs?: number }) {
+  const toasts = useToasts();
   const [data, setData] = useState<Json | undefined>(undefined);
   const [error, setError] = useState<{ status: number; text: string } | null>(null);
+  const [job, setJob] = useState<BacktestStatus | null>(null);
+  const alive = useRef(true);
+
+  const load = useCallback(async () => {
+    try {
+      const d = await api.backtest();
+      if (alive.current) {
+        setData(d);
+        setError(null);
+      }
+    } catch (e) {
+      if (alive.current) setError({ status: e instanceof ApiError ? e.status : 0, text: errorText(e) });
+    }
+  }, []);
 
   useEffect(() => {
-    let alive = true;
+    alive.current = true;
+    void load();
     api
-      .backtest()
-      .then((d) => alive && setData(d))
-      .catch((e) => alive && setError({ status: e instanceof ApiError ? e.status : 0, text: errorText(e) }));
+      .backtestStatus()
+      .then((s) => alive.current && setJob(s))
+      .catch(() => undefined);
     return () => {
-      alive = false;
+      alive.current = false;
     };
-  }, []);
+  }, [load]);
+
+  // While a run is going, poll its status; load the results when it finishes.
+  useEffect(() => {
+    if (job?.state !== "running") return;
+    const id = window.setTimeout(async () => {
+      try {
+        const s = await api.backtestStatus();
+        if (!alive.current) return;
+        setJob(s);
+        if (s.state === "done") {
+          toasts.push({ kind: "success", text: "Backtest finished." });
+          void load();
+        } else if (s.state === "error") toasts.push({ kind: "error", text: `Backtest failed: ${s.error ?? "unknown error"}` });
+      } catch (e) {
+        if (alive.current) setJob((j) => (j ? { ...j, state: "error", error: errorText(e) } : j));
+      }
+    }, pollMs);
+    return () => window.clearTimeout(id);
+  }, [job, pollMs, load, toasts]);
+
+  const start = async () => {
+    try {
+      setJob(await api.runBacktest());
+    } catch (e) {
+      toasts.error(e);
+    }
+  };
+  const running = job?.state === "running";
 
   return (
     <div className="page">
       <header className="page-head">
         <h1>Backtest</h1>
+        <div className="row gap">
+          {job?.finished_at && !running && <span className="muted small">Last run {fmtDateTime(job.finished_at)}</span>}
+          <button type="button" className="btn btn-primary" disabled={running} onClick={() => void start()}>
+            {running && <Spinner label="Running" />} {running ? "Running backtest..." : "Run backtest"}
+          </button>
+        </div>
       </header>
+      {job?.state === "error" && <p className="panel field-error">Backtest failed: {job.error}</p>}
       {error?.status === 404 ? (
         <div className="panel empty-state">
           <h2>No backtest results yet</h2>
           <p>
             The backtest compares pick strategies (line movement, favourites, random, ...) on past seasons and saves the results
-            to <code>data/history/backtest_results.json</code>. Generate it with:
+            to <code>data/history/backtest_results.json</code>. Press <strong>Run backtest</strong> (it takes under a minute), or
+            from the project folder run:
           </p>
           <pre className="alert-body">python -m cover5.backtest_movement</pre>
-          <p className="hint">Then reload this page.</p>
         </div>
       ) : error ? (
         <p className="panel field-error">{error.text}</p>

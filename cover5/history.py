@@ -154,20 +154,58 @@ def last_change(season: int, week: int) -> dict | None:
 
 
 # --------------------------------------------------------------------------- weeks
-def upsert_week(view: dict) -> None:
-    """Store the computed part of a week's record from a service week view."""
-    if not view or not view.get("has_league_file"):
-        return
+COMPUTED_FIELDS = ("picks", "n_picks", "final_points", "live_points", "expected_open", "projected",
+                   "movement_edge", "n_final", "n_live", "n_open", "complete")
+
+
+def _computed(view: dict) -> dict:
     picks = [{k: p.get(k) for k in ("game_id", "team", "opponent", "is_home", "label", "league_spread",
                                      "market_spread", "edge", "status", "points", "source", "locked", "manual")}
              for p in view.get("picks", [])]
     s = view["summary"]
-    n = view.get("n_picks", config.N_PICKS)
-    complete = int(len(picks) >= n and all(p["status"] == "final" for p in picks))
-    row = (view["season"], view["week"], _now(), json.dumps(picks), len(picks),
-           float(s["final"]), float(s["live"]), float(s["expected"]), float(s["projected"]),
-           float(sum(p["edge"] or 0.0 for p in picks)), int(s["n_final"]), int(s["n_live"]),
-           int(s["n_open"]), complete)
+    n = view.get("n_picks", config.N_PICKS)       # the league's slots, not how many picks you hold
+    all_final = all(p["status"] == "final" for p in picks)
+    # A slot left empty once every game has kicked off scores 0: the week is done.
+    slate_over = bool(view.get("games")) and all(g.get("locked") for g in view["games"])
+    complete = int(all_final and (len(picks) >= n or slate_over))
+    return {"picks": picks, "n_picks": n,
+            "final_points": float(s["final"]), "live_points": float(s["live"]),
+            "expected_open": float(s["expected"]), "projected": float(s["projected"]),
+            "movement_edge": float(sum(p["edge"] or 0.0 for p in picks)), "n_final": int(s["n_final"]),
+            "n_live": int(s["n_live"]), "n_open": int(s["n_open"]), "complete": complete}
+
+
+def _same(stored: dict, new: dict) -> bool:
+    for k in COMPUTED_FIELDS:
+        a, b = stored.get(k), new[k]
+        if k == "complete":
+            a, b = bool(a), bool(b)
+        elif isinstance(b, float):
+            if a is None or abs(float(a) - b) > 1e-9:
+                return False
+            continue
+        if a != b:
+            return False
+    return True
+
+
+def upsert_week(view: dict, only_if_changed: bool = False) -> bool:
+    """Store the computed part of a week's record from a service week view. True if stored.
+
+    ``only_if_changed`` skips the write (and keeps ``updated_at``) when the
+    stored record already has these values, so syncing can run often.
+    """
+    if not view or not view.get("has_league_file"):
+        return False
+    c = _computed(view)
+    existing = get_week(view["season"], view["week"])
+    if not c["picks"] and existing is None:
+        return False    # a week set up but not picked yet is not a record (yet)
+    if only_if_changed and existing is not None and _same(existing, c):
+        return False
+    row = (view["season"], view["week"], _now(), json.dumps(c["picks"]), c["n_picks"],
+           c["final_points"], c["live_points"], c["expected_open"], c["projected"], c["movement_edge"],
+           c["n_final"], c["n_live"], c["n_open"], c["complete"])
     with connect() as con:
         con.execute(
             """INSERT INTO weeks (season, week, updated_at, picks, n_picks, final_points, live_points,
@@ -180,6 +218,7 @@ def upsert_week(view: dict) -> None:
                    movement_edge=excluded.movement_edge, n_final=excluded.n_final,
                    n_live=excluded.n_live, n_open=excluded.n_open, complete=excluded.complete""",
             row)
+    return True
 
 
 def set_manual(season: int, week: int, **fields) -> dict:

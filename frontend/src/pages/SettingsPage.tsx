@@ -103,13 +103,31 @@ export function SettingsPage() {
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setForm((f) => (f ? { ...f, [k]: v } : f));
 
+  const diff = settings && form ? settingsDiff(settings, form, key) : {};
+  const dirty = typeof diff === "string" || Object.keys(diff).length > 0;
+
+  // Leaving (or reloading) the page with edits that aren't saved asks first.
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+
   const save = async (body: SettingsUpdate, what: string) => {
     setBusy(what);
     try {
       const s = await api.saveSettings(body);
       setSettings(s);
-      setForm(toForm(s));
-      setKey("");
+      if (what === "clear") {
+        // Only the key changed: keep every other edit in the form (and a key being typed).
+      } else {
+        setForm(toForm(s));
+        setKey("");
+      }
       toasts.push({ kind: "success", text: what === "clear" ? "Odds API key cleared." : "Settings saved." });
       void refreshMeta();
     } catch (e) {
@@ -161,10 +179,11 @@ export function SettingsPage() {
       <form className="settings" onSubmit={onSubmit}>
         <section className="panel">
           <h2>Odds</h2>
-          <Field label="Provider" id={`${id}-prov`} hint="The Odds API averages several books (needs a key); ESPN needs no key.">
+          <Field label="Provider" id={`${id}-prov`} hint="The Odds API averages several books (needs a key); ESPN needs no key; a local market file (COVER5_MARKET_FILE) is for offline demos and tests.">
             <select id={`${id}-prov`} className="select" value={form.provider} onChange={(e) => set("provider", e.target.value as Provider)}>
               <option value="oddsapi">The Odds API (oddsapi)</option>
               <option value="espn">ESPN (espn)</option>
+              <option value="file">Local market file (file)</option>
             </select>
           </Field>
           <Field
@@ -278,6 +297,11 @@ export function SettingsPage() {
         </section>
 
         <div className="save-bar">
+          {dirty && (
+            <span className="unsaved" role="status">
+              Unsaved changes
+            </span>
+          )}
           <button type="button" className="btn" disabled={busy != null} onClick={() => { setForm(toForm(settings)); setKey(""); }}>
             Reset
           </button>

@@ -1,15 +1,36 @@
 import { useId, useState } from "react";
+import type { PointsBody, ScoreBody } from "../api/client";
 import type { Game, Pick } from "../api/types";
 import { Dialog } from "../components/Dialog";
 import { TeamBadge } from "../components/Team";
-import { fmtKickoff, fmtPoints, fmtSpread, parseNumber, parseSpreadInput, pickLabel, teamSpread } from "../lib/format";
+import { hasKickedOff } from "../lib/clock";
+import { gameStarted, viewTeam } from "./GamesTable";
+import { fmtDateTime, fmtKickoff, fmtPoints, fmtSpread, parseNumber, parseSpreadInput, pickLabel, teamSpread } from "../lib/format";
 
-const FOUR_HOURS = 4 * 3600 * 1000;
+/** About as long as a game lasts: later than this after kickoff, an entry is the final. */
+const GAME_LENGTH = 3.5 * 3600 * 1000;
 
-function probablyLive(kickoffIso: string, nowIso?: string): boolean {
+export function probablyLive(kickoffIso: string, nowIso?: string): boolean {
   const k = new Date(kickoffIso).getTime();
   const now = nowIso ? new Date(nowIso).getTime() : Date.now();
-  return now >= k && now - k < FOUR_HOURS;
+  return now >= k && now - k < GAME_LENGTH;
+}
+
+/** "The schedule says it hasn't started" notice with an override, for a wrong nflverse kickoff time. */
+function NotStarted({ kickoff, force, setForce }: { kickoff: string; force: boolean; setForce: (v: boolean) => void }) {
+  const id = useId();
+  return (
+    <div className="notice">
+      <p className="hint">
+        The schedule says this game kicks off {fmtDateTime(kickoff)}, so it has no score yet. If it has started (the schedule's kickoff time is
+        wrong), you can enter it anyway.
+      </p>
+      <label htmlFor={id} className="check">
+        <input id={id} type="checkbox" checked={force} onChange={(e) => setForce(e.target.checked)} />
+        It has started: enter it anyway
+      </label>
+    </div>
+  );
 }
 
 /* ------------------------------------------------------------------ line */
@@ -23,7 +44,7 @@ interface LineProps {
 }
 
 export function LineDialog({ game, busy, onSave, onRevert, onClose }: LineProps) {
-  const initialTeam = game.picked_team ?? game.best_team ?? game.home;
+  const initialTeam = viewTeam(game);
   const [team, setTeam] = useState(initialTeam);
   const isHome = team === game.home;
   const [text, setText] = useState(() => {
@@ -125,16 +146,20 @@ interface ScoreProps {
   game: Game;
   now?: string;
   busy: boolean;
-  onSave: (body: { team: string; team_points: number; opponent_points: number; live: boolean }) => void;
+  onSave: (body: ScoreBody) => void;
   onRevert: (team: string) => void;
   onClose: () => void;
+  /** For a game you picked: enter the app's points for the pick instead. */
+  onPoints?: (force: boolean) => void;
 }
 
-export function ScoreDialog({ game, now, busy, onSave, onRevert, onClose }: ScoreProps) {
+export function ScoreDialog({ game, now, busy, onSave, onRevert, onClose, onPoints }: ScoreProps) {
   const r = game.result;
+  const started = gameStarted(game, now);
   const [away, setAway] = useState(r ? String(r.away_score) : "");
   const [home, setHome] = useState(r ? String(r.home_score) : "");
   const [live, setLive] = useState(r ? !r.final : probablyLive(game.kickoff_utc, now));
+  const [force, setForce] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const awayId = useId();
   const homeId = useId();
@@ -150,7 +175,9 @@ export function ScoreDialog({ game, now, busy, onSave, onRevert, onClose }: Scor
     }
     const team = game.picked_team ?? game.home;
     const teamIsHome = team === game.home;
-    onSave({ team, team_points: teamIsHome ? h : a, opponent_points: teamIsHome ? a : h, live });
+    const body: ScoreBody = { team, team_points: teamIsHome ? h : a, opponent_points: teamIsHome ? a : h, live };
+    if (!started && force) body.force = true;
+    onSave(body);
   };
 
   return (
@@ -174,7 +201,15 @@ export function ScoreDialog({ game, now, busy, onSave, onRevert, onClose }: Scor
           <input id={liveId} type="checkbox" checked={live} onChange={(e) => setLive(e.target.checked)} />
           Game still in progress (live score)
         </label>
+        {!started && <NotStarted kickoff={game.kickoff_utc} force={force} setForce={setForce} />}
         {err && <p className="field-error">{err}</p>}
+        {onPoints && game.picked_team && (
+          <p className="hint">
+            <button type="button" className="link-btn" onClick={() => onPoints(force)} disabled={busy || (!started && !force)}>
+              Enter {game.picked_team}'s points as the app shows them instead
+            </button>
+          </p>
+        )}
         <div className="dialog-foot">
           {r?.source === "score override" && (
             <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => onRevert(game.picked_team ?? game.home)}>
@@ -185,7 +220,7 @@ export function ScoreDialog({ game, now, busy, onSave, onRevert, onClose }: Scor
           <button type="button" className="btn" onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" className="btn btn-primary" disabled={busy}>
+          <button type="submit" className="btn btn-primary" disabled={busy || (!started && !force)}>
             Save score
           </button>
         </div>
@@ -201,15 +236,21 @@ interface PointsProps {
   now?: string;
   hasOverride: boolean;
   busy: boolean;
-  onSave: (body: { team: string; points: number; live: boolean }) => void;
+  onSave: (body: PointsBody) => void;
   onRevert: (team: string) => void;
   onClose: () => void;
+  /** Start with "enter it anyway" ticked (the score dialog already confirmed the game has started). */
+  forced?: boolean;
 }
 
-export function PointsDialog({ pick, now, hasOverride, busy, onSave, onRevert, onClose }: PointsProps) {
+export function PointsDialog({ pick, now, hasOverride, busy, onSave, onRevert, onClose, forced = false }: PointsProps) {
   const graded = pick.status !== "open";
+  const started = hasKickedOff(pick.kickoff_utc, now);
   const [text, setText] = useState(graded ? fmtPoints(pick.points) : "");
-  const [live, setLive] = useState(pick.status === "live" || (!graded && probablyLive(pick.kickoff_utc, now)));
+  // Live only while the game is probably still being played. Coming back hours
+  // later to type the final starts unticked, even if the last entry was live.
+  const [live, setLive] = useState(pick.status !== "final" && probablyLive(pick.kickoff_utc, now));
+  const [force, setForce] = useState(forced);
   const [err, setErr] = useState<string | null>(null);
   const id = useId();
   const liveId = useId();
@@ -221,7 +262,9 @@ export function PointsDialog({ pick, now, hasOverride, busy, onSave, onRevert, o
       setErr("Enter the points as a number, e.g. +8 or -3.5");
       return;
     }
-    onSave({ team: pick.team, points: n, live });
+    const body: PointsBody = { team: pick.team, points: n, live };
+    if (!started && force) body.force = true;
+    onSave(body);
   };
 
   return (
@@ -246,6 +289,7 @@ export function PointsDialog({ pick, now, hasOverride, busy, onSave, onRevert, o
           <input id={liveId} type="checkbox" checked={live} onChange={(e) => setLive(e.target.checked)} />
           Game still in progress (live)
         </label>
+        {!started && <NotStarted kickoff={pick.kickoff_utc} force={force} setForce={setForce} />}
         {err && <p className="field-error">{err}</p>}
         <div className="dialog-foot">
           {hasOverride && (
@@ -257,7 +301,7 @@ export function PointsDialog({ pick, now, hasOverride, busy, onSave, onRevert, o
           <button type="button" className="btn" onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" className="btn btn-primary" disabled={busy}>
+          <button type="submit" className="btn btn-primary" disabled={busy || (!started && !force)}>
             Save points
           </button>
         </div>
@@ -299,6 +343,93 @@ export function ReplaceDialog({ incoming, incomingLabel, picks, busy, onChoose, 
           </li>
         ))}
       </ul>
+    </Dialog>
+  );
+}
+
+/* ------------------------------------------------------------ lock a team */
+
+interface LockPickProps {
+  game: Game;
+  busy: boolean;
+  onLock: (team: string) => void;
+  onClose: () => void;
+}
+
+/** Lock a team you don't hold yet: it takes a slot, and the model drops the weakest open pick if the set is full. */
+export function LockPickDialog({ game, busy, onLock, onClose }: LockPickProps) {
+  const label = (team: string) => {
+    const isHome = team === game.home;
+    return pickLabel(team, isHome ? game.away : game.home, teamSpread(game.league_home_spread, isHome), isHome);
+  };
+  return (
+    <Dialog
+      title={`Lock a team in ${game.away} @ ${game.home}`}
+      onClose={onClose}
+      size="sm"
+      description="A locked team is one of your picks that the model never drops or flips. If your five picks are full, the weakest open pick makes room."
+    >
+      <ul className="replace-list">
+        {[game.away, game.home].map((t, i) => (
+          <li key={t}>
+            <button type="button" className="replace-opt" disabled={busy} onClick={() => onLock(t)} data-autofocus={i === 0 ? true : undefined}>
+              <TeamBadge team={t} size="sm" />
+              <span className="replace-label">Lock {label(t)}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </Dialog>
+  );
+}
+
+/* ---------------------------------------------------------------- re-seed */
+
+interface ReseedProps {
+  busy: boolean;
+  onReseed: (useMarket: boolean) => void;
+  onClose: () => void;
+}
+
+export function ReseedDialog({ busy, onReseed, onClose }: ReseedProps) {
+  const [source, setSource] = useState<"market" | "nflverse">("market");
+  return (
+    <Dialog
+      title="Re-seed league lines?"
+      onClose={onClose}
+      size="sm"
+      description="Only do this if the sheet was seeded wrong. Single lines are better corrected by clicking them."
+    >
+      <div className="form-stack">
+        <fieldset className="radio-list">
+          <legend>Replace the lines of games that haven't kicked off with</legend>
+          <label className="check">
+            <input type="radio" name="reseed" checked={source === "market"} onChange={() => setSource("market")} />
+            <span>
+              <strong>Current sportsbook lines</strong> (games the market has no line for keep the sheet's line)
+            </span>
+          </label>
+          <label className="check">
+            <input type="radio" name="reseed" checked={source === "nflverse"} onChange={() => setSource("nflverse")} />
+            <span>
+              <strong>nflverse spreads</strong> (no odds fetch)
+            </span>
+          </label>
+        </fieldset>
+        <p className="hint">
+          Games that have kicked off keep their frozen line, so scores already graded don't change. The current sheet is saved to
+          data/league_lines/backup/ first, and your line overrides still apply on top.
+        </p>
+        <div className="dialog-foot">
+          <span className="spacer" />
+          <button type="button" className="btn" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="button" className="btn btn-primary" disabled={busy} onClick={() => onReseed(source === "market")}>
+            {source === "market" ? "Re-seed from market" : "Re-seed from nflverse"}
+          </button>
+        </div>
+      </div>
     </Dialog>
   );
 }
