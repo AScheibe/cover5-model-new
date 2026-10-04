@@ -2,3 +2,6 @@ __pycache__/
 *.pyc
 .pytest_cache/
 data/cache/
+# raw downloads are re-fetched by scripts/build_history.py; keep only provenance
+data/history/raw/*
+!data/history/raw/*.source.json
