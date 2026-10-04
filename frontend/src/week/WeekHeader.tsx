@@ -1,0 +1,96 @@
+import { useEffect, useId, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { api } from "../api/client";
+import type { ScheduleWeek, SchedulerStatus, WeekView } from "../api/types";
+import { SchedulerPill } from "../components/SchedulerPill";
+import { Spinner } from "../components/Spinner";
+import { fmtAgo, fmtDateTime, fmtShortDate } from "../lib/format";
+
+interface Props {
+  season: number;
+  week: number;
+  seasons: number[];
+  view: WeekView | null;
+  busy: string | null;
+  scheduler: SchedulerStatus | null | undefined;
+  onFetch: () => void;
+  weeks: ScheduleWeek[] | null;
+}
+
+export function useSchedule(season: number, version = 0) {
+  const [weeks, setWeeks] = useState<ScheduleWeek[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    api
+      .schedule(season)
+      .then((w) => alive && setWeeks(w))
+      .catch(() => alive && setWeeks(null));
+    return () => {
+      alive = false;
+    };
+  }, [season, version]);
+  return weeks;
+}
+
+export function WeekHeader({ season, week, seasons, view, busy, scheduler, onFetch, weeks }: Props) {
+  const navigate = useNavigate();
+  const sid = useId();
+  const wid = useId();
+  const seasonList = seasons.includes(season) ? seasons : [...seasons, season].sort((a, b) => b - a);
+  const options: Partial<ScheduleWeek>[] = weeks ?? Array.from({ length: 18 }, (_, i) => ({ week: i + 1 }));
+  if (!options.some((o) => o.week === week)) options.push({ week });
+  const weekNums = options.map((w) => w.week ?? 0);
+  const maxWeek = Math.max(...weekNums, week);
+  const fetchedAt = view?.market?.fetched_at ?? null;
+
+  return (
+    <header className="week-header">
+      <div className="week-nav">
+        <button type="button" className="btn btn-icon" aria-label="Previous week" disabled={week <= 1} onClick={() => navigate(`/week/${season}/${week - 1}`)}>
+          ‹
+        </button>
+        <label htmlFor={sid} className="sr-only">
+          Season
+        </label>
+        <select id={sid} className="select" value={season} onChange={(e) => navigate(`/week/${e.target.value}/${week}`)}>
+          {seasonList.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+        <label htmlFor={wid} className="sr-only">
+          Week
+        </label>
+        <select id={wid} className="select" value={week} onChange={(e) => navigate(`/week/${season}/${e.target.value}`)}>
+          {options.map((w) => (
+            <option key={w.week} value={w.week}>
+              Week {w.week}
+              {w.first_kickoff ? ` · ${fmtShortDate(w.first_kickoff)}` : ""}
+              {w.has_league_file ? " · set up" : ""}
+              {w.has_record ? " · recorded" : ""}
+            </option>
+          ))}
+        </select>
+        <button type="button" className="btn btn-icon" aria-label="Next week" disabled={week >= maxWeek} onClick={() => navigate(`/week/${season}/${week + 1}`)}>
+          ›
+        </button>
+      </div>
+      <div className="week-tools">
+        <SchedulerPill status={scheduler} />
+        {view?.has_league_file && (
+          <>
+            <span className="fetched" title={fetchedAt ? fmtDateTime(fetchedAt) : undefined}>
+              Lines {view.market?.kind === "live" ? "live" : "fetched"} {fmtAgo(fetchedAt)}
+              {fetchedAt && <span className="muted"> · {fmtDateTime(fetchedAt)}</span>}
+            </span>
+            <button type="button" className="btn btn-primary" onClick={onFetch} disabled={busy != null}>
+              {busy === "update" ? <Spinner label="Fetching lines" /> : null}
+              {busy === "update" ? "Fetching..." : "Fetch lines"}
+            </button>
+          </>
+        )}
+      </div>
+    </header>
+  );
+}
