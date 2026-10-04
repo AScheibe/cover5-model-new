@@ -7,6 +7,8 @@ export interface Toast {
   id: number;
   kind: ToastKind;
   text: string;
+  /** Several messages from one outcome, shown together as one notification. */
+  lines?: string[];
   title?: string;
   body?: string;
 }
@@ -37,7 +39,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       const id = next.current++;
       // One copy of a message at a time; keep the newest four.
       setToasts((ts) => [...ts.filter((x) => !(x.text === t.text && x.title === t.title)), { ...t, id }].slice(-4));
-      window.setTimeout(() => dismiss(id), TTL[t.kind]);
+      // A longer notification stays up longer (up to the alert's 15 s).
+      const ttl = Math.min(TTL.alert, TTL[t.kind] + 2000 * Math.max(0, (t.lines?.length ?? 1) - 1));
+      window.setTimeout(() => dismiss(id), ttl);
     },
     [dismiss],
   );
@@ -47,7 +51,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       push,
       error: (e) => push({ kind: "error", text: errorText(e) }),
       outcome: (o) => {
-        for (const m of o.messages ?? []) push({ kind: "info", text: m });
+        // One notification per outcome, so its own messages never push each other out.
+        const msgs = o.messages ?? [];
+        if (msgs.length === 1) push({ kind: "info", text: msgs[0]! });
+        else if (msgs.length > 1) push({ kind: "info", text: msgs.join("\n"), lines: msgs });
         const a: Alert | null | undefined = o.alert;
         if (a && (a.changed || a.sent)) {
           push({
@@ -75,7 +82,15 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             <div key={t.id} className={`toast toast-${t.kind}`} role={t.kind === "error" ? "alert" : "status"}>
               <div className="toast-main">
                 {t.title && <strong className="toast-title">{t.title}</strong>}
-                <span className="toast-text">{t.text}</span>
+                {t.lines ? (
+                  t.lines.map((l, i) => (
+                    <span key={i} className="toast-text toast-line">
+                      {l}
+                    </span>
+                  ))
+                ) : (
+                  <span className="toast-text">{t.text}</span>
+                )}
                 {t.body && (
                   <details className="toast-body">
                     <summary>Alert text</summary>

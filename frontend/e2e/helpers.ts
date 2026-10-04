@@ -55,13 +55,16 @@ export async function clearToasts(page: Page) {
 
 /** Mutations disable every button while in flight; wait until the week is idle again. */
 export async function waitIdle(page: Page) {
-  await expect(page.getByRole("button", { name: /Fetch lines|Fetching/ })).toBeEnabled();
+  await expect(page.locator(".week-grid")).toHaveAttribute("aria-busy", "false");
 }
 
-/** Confirm the "this game has kicked off" dialog if it appears. */
+/**
+ * Confirm the "this game has kicked off" dialog if it appears. Its title and
+ * button name the action ("Remove DAL from your picks?" / "Remove DAL").
+ */
 export async function confirmIfKickedOff(page: Page) {
-  const dlg = page.getByRole("dialog", { name: "This game has kicked off" });
-  const btn = dlg.getByRole("button", { name: "Yes, it matches the app" });
+  const dlg = page.getByRole("dialog").filter({ hasText: "The league app locks a pick at kickoff" });
+  const btn = dlg.locator(".dialog-foot .btn-primary");
   try {
     await btn.waitFor({ state: "visible", timeout: 1500 });
   } catch {

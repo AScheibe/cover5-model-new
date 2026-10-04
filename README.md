@@ -54,6 +54,46 @@ python -m cover5 status
 python -m cover5 backtest
 ```
 
+## The web app (local)
+
+A React frontend and a local FastAPI server for managing the week and keeping
+history. Everything runs on your machine.
+
+```bash
+pip install -r requirements.txt
+npm --prefix frontend install
+npm --prefix frontend run build
+python -m cover5 serve --open        # http://127.0.0.1:8765
+```
+
+* **Week:** your five picks as tiles, with live/final/expected points and the
+  week total. A "Do this" banner shows changes you still need to make in the
+  league app. In the games table you click a team to pick it, click a line to
+  correct it, or click a result to enter a score. Locks, points, and a
+  line-movement chart for each game are on the same page.
+* **History:** every week's picks and points, saved in `data/cover5.db`. Week
+  rank, overall points and rank, the app's score and notes are fields you fill
+  in from the league app. It also charts cumulative points against the
+  movement edge, and exports to JSON.
+* **Backtest:** the movement-vs-random results.
+* **Settings:** odds provider and API key (stored locally in
+  `data/settings.json` and never shown again), ntfy/webhook alerts, swap and
+  flip margins, and the scheduler.
+
+While the server runs, its scheduler seeds the week on Wednesday at noon ET
+and fetches lines every 2 hours, more often on Sunday mornings. Use
+`--no-scheduler` to turn that off. The CLI and the app share the same files,
+so you can use either.
+
+To try it without touching your real data, use the bundled demo:
+
+```bash
+python scripts/demo_data.py /tmp/cover5-demo     # prints the env vars to use
+```
+
+Tests: `python -m pytest -q`, `npm --prefix frontend test -- --run`, and
+`npm --prefix frontend run e2e` (Playwright, starts its own server on demo data).
+
 ## Overrides: telling the tracker what is true
 
 The tracker can't see the league app, so it assumes you follow its alerts.

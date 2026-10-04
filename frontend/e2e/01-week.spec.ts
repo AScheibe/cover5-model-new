@@ -55,29 +55,49 @@ test("fetches lines from the market and logs a new snapshot", async ({ page, req
   expect(n1).toBeGreaterThan(n0);
 });
 
-test("shows the Do this banner for the last change and its alert text", async ({ page, request }) => {
+test("the Do this banner lists every change since you confirmed, once, and clears when marked done", async ({ page, request }) => {
   const { season, week, view } = await currentWeek(request);
-  const lc = view.last_change;
-  expect(lc, "the demo week has a run that changed picks").toBeTruthy();
-  // Only steps you can still act on: the picks agree and the game hasn't kicked off.
-  const have = view.picks!.map((p) => p.team);
+  expect(view.last_change, "the demo week has a run that changed picks").toBeTruthy();
+  const todo = view.todo!;
+  // Only steps you can still act on: the game hasn't kicked off.
   const open = (t: string) => !kickedOff(view.games!.find((g) => g.home === t || g.away === t)!.kickoff_utc, view.now);
-  const adds = lc!.added.filter((t) => have.includes(t) && open(t));
-  const drops = lc!.dropped.filter((t) => !have.includes(t) && open(t));
+  const adds = todo.added.filter(open);
+  const drops = todo.dropped.filter(open);
   await gotoWeek(page, season, week);
   const banner = page.getByRole("region", { name: "Do this" });
-  if (adds.length + drops.length === 0 && !view.diff?.changed) {
-    test.info().annotations.push({ type: "clock", description: "every game in the last change has kicked off" });
+  if (adds.length + drops.length + todo.flipped.filter(open).length === 0) {
+    test.info().annotations.push({ type: "clock", description: "nothing left to change before kickoff" });
     await expect(banner).toHaveCount(0);
     return;
   }
   await expect(banner).toBeVisible();
   await expect(banner.locator(".step-add")).toHaveCount(adds.length);
+  await expect(banner.locator(".step-drop")).toHaveCount(drops.length);
   for (const t of adds) await expect(banner.locator(".step-add .step-text", { hasText: new RegExp(`^${t} `) })).toBeVisible();
   for (const t of drops) await expect(banner.locator(".step-drop .step-text", { hasText: new RegExp(`^${t} `) })).toBeVisible();
+  // One list only: no second "pending change" block repeating the same steps.
+  await expect(page.getByText(/Pending change/i)).toHaveCount(0);
   await banner.getByRole("button", { name: "Show alert text" }).click();
   await expect(banner.locator(".alert-body")).toContainText("DO THIS");
   await expect(banner.locator(".alert-body")).toContainText("CURRENT PICKS");
+
+  // Fetch lines (a saved run): the banner still shows a single list.
+  await page.getByRole("button", { name: "Fetch lines" }).click();
+  await expectToast(page, /Fetched \d+ market lines\./);
+  await waitIdle(page);
+  await expect(page.getByText(/Pending change/i)).toHaveCount(0);
+
+  // "I've made these changes": the model's picks become your confirmed picks.
+  const confirmBtn = page.getByRole("button", { name: /I've made these changes/ });
+  if (await confirmBtn.count()) {
+    await confirmBtn.click();
+    await expectToast(page, /Noted: your picks in the app are/);
+    await waitIdle(page);
+    await expect(banner).toHaveCount(0);
+    const after = await getWeek(request, season, week);
+    expect(after.todo!.changed).toBe(false);
+    expect(after.todo!.confirmed).toEqual(after.picks!.map((p) => p.team));
+  }
 });
 
 test("a completed week shows no Do this banner", async ({ page, request }) => {
@@ -107,7 +127,7 @@ test("replaces a pick when the set is full, then removes it again", async ({ pag
   await expect(dlg.getByRole("button")).toHaveCount(view.picks!.length + 1); // one per pick + close
   await dlg.getByRole("button", { name: new RegExp(escapeRe(out.label)) }).click();
   await confirmIfKickedOff(page);
-  await expectToast(page, new RegExp(`Your picks are now: .*${incoming}`));
+  await expectToast(page, new RegExp(`(Your picks are now|You entered): .*${incoming}`));
   await waitIdle(page);
 
   const after = await getWeek(request, season, week);
@@ -124,12 +144,18 @@ test("replaces a pick when the set is full, then removes it again", async ({ pag
     await clearToasts(page);
     await gameRow(page, game.game_id).getByRole("button", { name: `Pick ${incoming}` }).click();
     await confirmIfKickedOff(page);
-    await expectToast(page, /Your picks are now:/);
+    // Either the slot stays empty, or the toast says which team the model puts in it.
+    await expectToast(page, /Your picks are now:|The model suggests .* for the open slot/);
     await waitIdle(page);
     await expect(pickTile(page, incoming)).toHaveCount(0);
     expect((await getWeek(request, season, week)).picks!.map((p) => p.team)).not.toContain(incoming);
   } else {
-    // Open game: the model may immediately advise switching back; either way the view matches the server.
+    // Open game: the team you picked by hand is locked, so the model can't swap it straight back.
+    expect(teams).toContain(incoming);
+    expect(teams).not.toContain(out.team);
+    expect(after.picks!.find((p) => p.team === incoming)?.manual).toBe(true);
+    await expect(pickTile(page, incoming)).toContainText("LOCKED by you");
+    await expect(gameRow(page, game.game_id).getByRole("button", { name: `Pick ${incoming}` })).toHaveAttribute("aria-pressed", "true");
     for (const t of teams) await expect(pickTile(page, t)).toBeVisible();
   }
 

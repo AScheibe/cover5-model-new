@@ -41,15 +41,20 @@ test("the app shows backend errors as alerts and keeps the week unchanged", asyn
   await expect(page.getByRole("alert").filter({ hasText: "spread must be a finite number between -60 and 60" })).toBeVisible();
   expect((await getWeek(request, season, week)).overrides!.lines).toEqual([]);
 
-  // Points for a pick that hasn't kicked off: the server names the kickoff.
+  // Points for a pick that hasn't kicked off: the button is disabled and says why.
   const open = view.picks!.find((p) => !kickedOff(p.kickoff_utc, view.now));
   if (open) {
-    await pickTile(page, open.team).getByRole("button", { name: `Enter points for ${open.team}` }).click();
-    const pd = page.getByRole("dialog", { name: new RegExp(`^Points: ${open.team} `) });
-    await pd.getByLabel("Points", { exact: true }).fill("3");
-    await pd.getByLabel("Game still in progress (live)").setChecked(false);
-    await pd.getByRole("button", { name: "Save points" }).click();
-    await expect(page.getByRole("alert").filter({ hasText: "hasn't kicked off yet" })).toBeVisible();
+    const btn = pickTile(page, open.team).getByRole("button", { name: `Enter points for ${open.team}` });
+    await expect(btn).toBeDisabled();
+    await expect(btn).toHaveAttribute("title", /once the game kicks off/);
+  }
+  // The API still refuses it, without naming a CLI flag.
+  if (open) {
+    const res = await request.put(`/api/week/${season}/${week}/points`, { data: { team: open.team, points: 3 } });
+    expect(res.status()).toBe(400);
+    const detail = (await res.json()).detail as string;
+    expect(detail).toContain("hasn't kicked off yet");
+    expect(detail).not.toContain("--week");
   }
 });
 

@@ -75,6 +75,12 @@ interface Summary {
 
 interface Diff { changed: boolean; added: string[]; dropped: string[]; flipped: string[]; }
 
+interface Todo extends Diff {            // the model's picks vs. the picks you last confirmed, netted:
+                                         // every change since then, games that haven't kicked off only
+  since: string | null;                  // when you confirmed the whole set (set picks / "I've made these changes")
+  confirmed: string[] | null;            // your confirmed teams; null = never confirmed (todo = add every pick)
+}
+
 interface OverrideItem<V> { game_id: string; away: string | null; home: string | null; value: V; }
 
 interface WeekView {
@@ -86,7 +92,9 @@ interface WeekView {
   games?: Game[];                        // sorted by kickoff
   picks?: Pick[];                        // sorted by edge, desc
   summary?: Summary;
-  diff?: Diff;                           // changes still pending vs. the picks you have (usually empty)
+  diff?: Diff;                           // changes the model would still make to the presumed picks;
+                                         // always empty right after a saved run (those picks are now presumed)
+  todo?: Todo;                           // what to change in the league app (the "Do this" list)
   warnings?: string[];
   overrides?: {
     lines:   OverrideItem<number>[];                                    // home_spread
@@ -98,7 +106,9 @@ interface WeekView {
                                          // the most recent run that changed picks: what you were told to do
 }
 
-interface Alert { title: string; body: string; changed: boolean; sent: boolean; }
+interface Alert { title: string; body: string; changed: boolean;
+                  sent: boolean;          // true only if ntfy or the webhook accepted it (HTTP 2xx)
+                  failures?: string[]; }  // one line per channel that didn't, without secrets
 interface Outcome { week: WeekView; alert: Alert | null; messages: string[]; }
 
 interface Run {                          // one saved recompute (alert log)
@@ -114,7 +124,7 @@ interface WeekRecord {                   // one row of history
   final_points: number; live_points: number; expected_open: number; projected: number;
   movement_edge: number;                 // sum of pick edges: expected points from line movement
   n_final: number; n_live: number; n_open: number;
-  complete: boolean;                     // all picks final
+  complete: boolean;                     // all picks final, and all slots filled or every game kicked off
   // entered by the user from the league app; null until set
   week_rank: number | null; entrants: number | null;
   overall_points: number | null; overall_rank: number | null;
@@ -143,12 +153,14 @@ interface SchedulerStatus {
 
 | method | path | body | returns |
 | --- | --- | --- | --- |
-| GET | `/api/meta` | | `{current: {season, week}, now, seasons: number[], config: {n_picks, swap_margin, flip_margin, provider, odds_api_key_set, ntfy_topic_set, webhook_set}, scheduler: SchedulerStatus}` |
+| GET | `/api/meta` | | `{current: {season, week}, now, seasons: number[], config: {n_picks, swap_margin, flip_margin, provider, odds_api_key_set, ntfy_topic_set, webhook_set}, scheduler: SchedulerStatus, results: {downloaded_at, offline}}` |
 | GET | `/api/schedule/{season}` | | `[{week, n_games, first_kickoff, last_kickoff, has_league_file, has_record}]` for every regular season week |
 | GET | `/api/week/{season}/{week}` | | `WeekView` (read only, uses the last logged lines) |
-| POST | `/api/week/{season}/{week}/init` | `{overwrite?: bool, use_market?: bool}` | Outcome |
-| POST | `/api/week/{season}/{week}/update` | `{force_alert?: bool}` | Outcome (fetches the market) |
-| PUT | `/api/week/{season}/{week}/picks` | `{teams: string[]}` (0 to n_picks) | Outcome (also removes locks on games not listed) |
+| POST | `/api/week/{season}/{week}/init` | `{overwrite?: bool, use_market?: bool}` | Outcome. A re-seed (`overwrite`) keeps the frozen line of every game that has kicked off (and of games the market lacks) and backs the old sheet up to `data/league_lines/backup/` |
+| POST | `/api/week/{season}/{week}/update` | `{force_alert?: bool}` | Outcome (fetches the market; logs only lines for this week's games; 400 once every game has kicked off) |
+| PUT | `/api/week/{season}/{week}/picks` | `{teams: string[], lock?: string[]}` (0 to n_picks) | Outcome. The teams become your confirmed picks; `lock` (a subset) locks those too so the model keeps them (the web app locks a team you pick by hand). Also removes locks on games not listed |
+| POST | `/api/week/{season}/{week}/confirm` | | Outcome. "I've made these changes": the model's picks become your confirmed picks, so `todo` empties |
+| POST | `/api/week/{season}/{week}/results` | | Outcome. Downloads nflverse results now (unless offline) and regrades the week and its record |
 | POST | `/api/week/{season}/{week}/locks` | `{teams: string[]}` | Outcome |
 | DELETE | `/api/week/{season}/{week}/locks/{team}` | | Outcome |
 | PUT | `/api/week/{season}/{week}/lines` | `{team, spread: number \| "PK"}` (team's view) | Outcome |
@@ -158,11 +170,13 @@ interface SchedulerStatus {
 | GET | `/api/week/{season}/{week}/snapshots` | | `{games: [{game_id, away, home, kickoff_utc, league_home_spread, series: [{t, home_spread, books, source}]}]}` |
 | GET | `/api/week/{season}/{week}/runs` | query `limit` | `Run[]`, newest first |
 | GET | `/api/week/{season}/{week}/score` | | `{picks: [{label, status, points, source}], summary: Summary, warnings: string[]}` |
-| GET | `/api/history` | query `season` | `{seasons: number[], weeks: WeekRecord[], totals: {weeks, complete_weeks, final_points, movement_edge, avg_week}}` |
-| POST | `/api/history/refresh` | `{season?: number}` | `{updated: number, weeks: WeekRecord[]}` |
-| PUT | `/api/history/{season}/{week}` | any of the user fields of WeekRecord | `WeekRecord` |
+| GET | `/api/history` | query `season` | `{seasons: number[], weeks: WeekRecord[], totals: {weeks, complete_weeks, final_points, movement_edge, avg_week}}`. Unfinished records are first synced with their computed week (database only, only when a value changed) |
+| POST | `/api/history/refresh` | `{season?: number}` | `{updated: number, weeks: WeekRecord[], results: {downloaded_at, offline}}`. Downloads nflverse results first (unless offline) |
+| PUT | `/api/history/{season}/{week}` | any of the user fields of WeekRecord | `WeekRecord`; creates a standings-only record for a week never tracked |
 | GET | `/api/history/export` | | `{exported_at, weeks: WeekRecord[], runs: Run[]}` as a download |
 | GET | `/api/backtest` | | contents of `data/history/backtest_results.json`, or 404 |
+| GET | `/api/backtest/status` | | `{state: "idle" \| "running" \| "done" \| "error", started_at, finished_at, error}` |
+| POST | `/api/backtest/run` | | 202 with the status plus `started` (false if one is already running); runs in the background |
 | GET | `/api/settings` | | `Settings` |
 | PUT | `/api/settings` | partial Settings, plus `odds_api_key?: string` (empty string clears) | `Settings` |
 | GET | `/api/scheduler` | | `SchedulerStatus` |
@@ -179,8 +193,22 @@ A background thread wakes every minute. When enabled it:
    interval: `sunday_interval_minutes` on Sundays between 9:00 and 13:00 ET,
    otherwise `interval_minutes`. It skips weeks whose games have all kicked off.
 3. Refreshes that week's history record after each update.
+4. On every tick (enabled or not), syncs unfinished week records of the
+   season with their computed week when the nflverse file changed or ten
+   minutes passed, so Monday night and late finals reach History after the
+   week's last update ran. When a game should be over (kickoff + 3.5 h, within
+   three days) but has no result, nflverse is downloaded again, at most every
+   30 minutes, instead of waiting out the 6 hour cache.
 
-Errors are recorded in the status and never stop the thread.
+Errors are recorded in the status and never stop the thread. Error text never
+contains the odds API key (it is redacted everywhere it could appear).
+
+## Local only
+
+The server answers only requests whose `Host` is localhost or an IP address
+(DNS rebinding), and refuses with 403 any write (a method other than
+GET/HEAD/OPTIONS) whose `Origin` isn't the server's own or the Vite dev
+origin, or that a browser marks `Sec-Fetch-Site: cross-site`.
 
 ## Storage
 
@@ -194,7 +222,10 @@ Errors are recorded in the status and never stop the thread.
 ## Override rules
 
 * **Picks** are the full truth for the week: setting them removes any lock on
-  a game you didn't list, or on the other side of a game you did.
+  a game you didn't list, or on the other side of a game you did. They are
+  stored as your *confirmed* picks; locking a team or entering its points
+  confirms that game too. The model's picks (the presumed picks, which assume
+  you follow each alert) can then differ, and `todo` is the difference.
 * **Locks** fill a slot. Locking a team that isn't one of your picks while all
   slots are full is allowed before its kickoff (the weakest open pick makes
   room, and the alert says so) and refused after it.

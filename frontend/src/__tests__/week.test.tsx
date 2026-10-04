@@ -68,19 +68,28 @@ describe("picks strip", () => {
     expect(server.mutations()[1]).toMatchObject({ method: "DELETE", path: "/api/week/2026/4/locks/CLE" });
   });
 
-  it("enters points with the live flag", async () => {
+  it("enters points with the live flag for a pick that has kicked off", async () => {
     const server = mockServer();
     server.on("PUT /api/week/2026/4/points", () => samples.outcomeSetPoints);
     const { user } = await openWeek(server);
-    await user.click(within(tile("WAS -3 vs IND")).getByRole("button", { name: "Enter points for WAS" }));
-    const dlg = await screen.findByRole("dialog", { name: /Points: WAS -3 vs IND/ });
-    await user.type(within(dlg).getByLabelText("Points"), "-3.5");
-    const live = within(dlg).getByLabelText(/live/);
-    if (!(live as HTMLInputElement).checked) await user.click(live);
+    await user.click(within(tile("CLE -3 vs PIT")).getByRole("button", { name: "Enter points for CLE" }));
+    const dlg = await screen.findByRole("dialog", { name: /Points: CLE -3 vs PIT/ });
+    const input = within(dlg).getByLabelText("Points");
+    await user.clear(input);
+    await user.type(input, "-3.5");
+    // Kicked off three hours ago: probably still being played, so live starts ticked.
+    expect(within(dlg).getByLabelText(/live/)).toBeChecked();
     await user.click(within(dlg).getByRole("button", { name: "Save points" }));
     await waitFor(() => expect(server.mutations()).toHaveLength(1));
-    expect(server.mutations()[0]).toMatchObject({ method: "PUT", path: "/api/week/2026/4/points", body: { team: "WAS", points: -3.5, live: true } });
+    expect(server.mutations()[0]).toMatchObject({ method: "PUT", path: "/api/week/2026/4/points", body: { team: "CLE", points: -3.5, live: true } });
     expect(await screen.findByText("CLE scored +8 (live); locked CLE as your pick in that game.")).toBeInTheDocument();
+  });
+
+  it("disables Points until the pick's game has kicked off", async () => {
+    await openWeek();
+    const btn = within(tile("WAS -3 vs IND")).getByRole("button", { name: "Enter points for WAS" });
+    expect(btn).toBeDisabled();
+    expect(btn.getAttribute("title")).toMatch(/once the game kicks off/);
   });
 });
 
@@ -97,7 +106,8 @@ describe("games table pick toggling", () => {
     expect(screen.getByRole("button", { name: "Pick WAS" })).toHaveAttribute("aria-pressed", "true");
     await user.click(screen.getByRole("button", { name: "Pick IND" }));
     await waitFor(() => expect(server.mutations()).toHaveLength(1));
-    expect(server.mutations()[0]!.body).toEqual({ teams: ["ARI", "CLE", "IND", "BAL", "BUF"] });
+    // The team you picked by hand is locked, so the model can't flip it straight back.
+    expect(server.mutations()[0]!.body).toEqual({ teams: ["ARI", "CLE", "IND", "BAL", "BUF"], lock: ["IND"] });
   });
 
   it("asks which pick to replace when the set is full", async () => {
@@ -107,7 +117,7 @@ describe("games table pick toggling", () => {
     expect(server.mutations()).toHaveLength(0);
     await user.click(within(dlg).getByRole("button", { name: /BUF -3 vs NE/ }));
     await waitFor(() => expect(server.mutations()).toHaveLength(1));
-    expect(server.mutations()[0]!.body).toEqual({ teams: ["ARI", "CLE", "WAS", "BAL", "CHI"] });
+    expect(server.mutations()[0]!.body).toEqual({ teams: ["ARI", "CLE", "WAS", "BAL", "CHI"], lock: ["CHI"] });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
@@ -130,16 +140,18 @@ describe("games table pick toggling", () => {
     await screen.findByRole("article", { name: "Pick ARI +7 @ NYG" });
     await user.click(screen.getByRole("button", { name: "Pick JAX" }));
     await waitFor(() => expect(server.mutations()).toHaveLength(1));
-    expect(server.mutations()[0]!.body).toEqual({ teams: ["ARI", "CLE", "WAS", "BAL", "JAX"] });
+    expect(server.mutations()[0]!.body).toEqual({ teams: ["ARI", "CLE", "WAS", "BAL", "JAX"], lock: ["JAX"] });
   });
 
   it("confirms before changing a kicked-off game and unlocks your lock first", async () => {
     const { user, server } = await openWeek();
     await user.click(screen.getByRole("button", { name: "Pick PIT" }));
-    const dlg = await screen.findByRole("dialog", { name: "This game has kicked off" });
-    expect(dlg).toHaveTextContent("only do this if it matches the app");
+    // The dialog names exactly what will happen.
+    const dlg = await screen.findByRole("dialog", { name: "Switch from CLE to PIT?" });
+    expect(dlg).toHaveTextContent("PIT @ CLE has kicked off.");
+    expect(dlg).toHaveTextContent("This replaces CLE with PIT +3 @ CLE in that game.");
     expect(server.mutations()).toHaveLength(0);
-    await user.click(within(dlg).getByRole("button", { name: "Yes, it matches the app" }));
+    await user.click(within(dlg).getByRole("button", { name: "Switch to PIT" }));
     await waitFor(() => expect(server.mutations()).toHaveLength(2));
     expect(server.mutations()[0]).toMatchObject({ method: "DELETE", path: "/api/week/2026/4/locks/CLE" });
     expect(server.mutations()[1]).toMatchObject({ method: "PUT", path: "/api/week/2026/4/picks", body: { teams: ["ARI", "PIT", "WAS", "BAL", "BUF"] } });
@@ -148,7 +160,9 @@ describe("games table pick toggling", () => {
   it("cancelling the kickoff confirmation sends nothing", async () => {
     const { user, server } = await openWeek();
     await user.click(screen.getByRole("button", { name: "Pick CLE" }));
-    const dlg = await screen.findByRole("dialog", { name: "This game has kicked off" });
+    const dlg = await screen.findByRole("dialog", { name: "Remove CLE from your picks?" });
+    expect(dlg).toHaveTextContent("This removes CLE -3 vs PIT from your picks and its points from the week.");
+    expect(within(dlg).getByRole("button", { name: "Remove CLE" })).toBeInTheDocument();
     await user.click(within(dlg).getByRole("button", { name: "Cancel" }));
     expect(server.mutations()).toHaveLength(0);
   });
@@ -223,16 +237,19 @@ describe("line and score overrides", () => {
       body: { team: "CLE", team_points: 24, opponent_points: 17, live: true },
     });
 
-    // Final score for an unpicked game goes in from the home team's view.
+    // Final score for an unpicked game goes in from the home team's view. The
+    // schedule says DAL @ HOU hasn't kicked off: saving needs "enter it anyway".
     await user.click(screen.getByRole("button", { name: "Enter score for DAL @ HOU" }));
     const dlg2 = await screen.findByRole("dialog", { name: "Score: DAL @ HOU" });
     await user.type(within(dlg2).getByLabelText(/DAL \(away\)/), "20");
     await user.type(within(dlg2).getByLabelText(/HOU \(home\)/), "13");
     const live2 = within(dlg2).getByLabelText(/live score/) as HTMLInputElement;
     if (live2.checked) await user.click(live2);
+    expect(within(dlg2).getByRole("button", { name: "Save score" })).toBeDisabled();
+    await user.click(within(dlg2).getByLabelText(/enter it anyway/));
     await user.click(within(dlg2).getByRole("button", { name: "Save score" }));
     await waitFor(() => expect(server.mutations()).toHaveLength(2));
-    expect(server.mutations()[1]!.body).toEqual({ team: "HOU", team_points: 13, opponent_points: 20, live: false });
+    expect(server.mutations()[1]!.body).toEqual({ team: "HOU", team_points: 13, opponent_points: 20, live: false, force: true });
   });
 });
 
