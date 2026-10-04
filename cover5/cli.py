@@ -13,6 +13,7 @@ Telling the tracker what is true (all of these are overrides the bot never erase
   python -m cover5 set-line IND -3.5           league line, from that team's view
   python -m cover5 set-score IND 30 13         game score, that team's points first
   python -m cover5 set-points TEN 5.5          a pick's score as the app shows it
+                                               (add --week N to fix a past week)
   python -m cover5 overrides                   list overrides
   python -m cover5 clear IND [--kind line]     remove overrides for a game
 
@@ -111,6 +112,8 @@ def cmd_score_week(args) -> int:
             tag = "" if p["status"] == "final" else " live"
             src = f"  [{p['source']}]" if "override" in p["source"] else ""
             print(f"  {p['label']:22s}  {p['points']:+g}{tag}{src}")
+    for w in res.get("warnings", []):
+        print(f"WARNING: {w}")
     print(res["summary"]["line"])
     return 0
 
@@ -147,13 +150,14 @@ def cmd_set_line(args) -> int:
 def cmd_set_score(args) -> int:
     season, week = _week(args)
     _run(service.set_score, season, week, args.team, args.team_points, args.opponent_points,
-         live=args.live, **_recompute_flag(args))
+         live=args.live, force=args.force, **_recompute_flag(args))
     return 0
 
 
 def cmd_set_points(args) -> int:
     season, week = _week(args)
-    _run(service.set_points, season, week, args.team, args.points, live=args.live, **_recompute_flag(args))
+    _run(service.set_points, season, week, args.team, args.points, live=args.live, force=args.force,
+         **_recompute_flag(args))
     return 0
 
 
@@ -217,8 +221,16 @@ def main(argv=None) -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--season", type=int)
     ap.add_argument("--week", type=int)
-    ap.add_argument("--provider", choices=["oddsapi", "espn"], default=None)
+    ap.add_argument("--provider", choices=list(config.PROVIDERS), default=None)
+    # --season/--week also work after the subcommand ("set-points NO 3.5 --week 4"),
+    # which is how the phone workflow targets a past week. SUPPRESS keeps a
+    # subcommand from overwriting values given before it.
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument("--season", type=int, default=argparse.SUPPRESS)
+    common.add_argument("--week", type=int, default=argparse.SUPPRESS)
     sub = ap.add_subparsers(dest="cmd", required=True)
+    _add_parser = sub.add_parser
+    sub.add_parser = lambda *a, **kw: _add_parser(*a, parents=[common], **kw)
 
     p = sub.add_parser("init-week", help="seed league lines for the week")
     p.add_argument("--overwrite", action="store_true")
@@ -253,10 +265,12 @@ def main(argv=None) -> int:
     q.add_argument("team_points")
     q.add_argument("opponent_points")
     q.add_argument("--live", action="store_true", help="game still in progress")
+    q.add_argument("--force", action="store_true", help="allow a game that hasn't kicked off")
     q = override("set-points", cmd_set_points, "a pick's score as the league app shows it")
     q.add_argument("team")
     q.add_argument("points", help="e.g. 13.5 or -4")
     q.add_argument("--live", action="store_true", help="game still in progress")
+    q.add_argument("--force", action="store_true", help="allow a game that hasn't kicked off")
     q = override("clear", cmd_clear, "remove overrides for the game a team plays in")
     q.add_argument("team")
     q.add_argument("--kind", action="append", choices=sorted(KIND_ALIASES),

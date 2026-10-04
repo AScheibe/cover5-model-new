@@ -97,6 +97,7 @@ def test_get_endpoints_never_write(wc, tmp_root):
     assert data_hash(tmp_root) == before
     # and with a populated week
     ok(wc.post(f"{W}/update"))
+    ok(wc.put(f"{W}/picks", json={"teams": ["CLE", "WAS", "BAL", "BUF", "CHI"]}))
     ok(wc.put(f"{W}/points", json={"team": "CLE", "points": 8, "live": True}))
     before = data_hash(tmp_root)
     for g in gets:
@@ -245,7 +246,7 @@ def test_runs_and_score(wc):
 # --------------------------------------------------------------------------- history
 def test_history_manual_fields_survive_refresh(wc):
     ok(wc.post(f"{W}/update"))
-    ok(wc.put(f"{W}/points", json={"team": "WAS", "points": 10}))
+    ok(wc.put(f"{W}/points", json={"team": "WAS", "points": 10, "force": True}))
     h = ok(wc.get("/api/history"))
     assert h["seasons"] == [2026] and len(h["weeks"]) == 1
     assert h["totals"] == {"weeks": 1, "complete_weeks": 0, "final_points": 10.0,

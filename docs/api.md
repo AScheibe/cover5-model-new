@@ -45,7 +45,10 @@ interface Game {
   result: { home_score: number; away_score: number; final: boolean;
             source: "nflverse" | "score override" } | null;
   picked_side: Side | null; picked_team: string | null;
-  lock: { team: string; side: Side } | null;   // a user lock on this game
+  lock: { team: string; side: Side;            // a user lock on this game
+          auto?: boolean;                      // added by entering points, not by "lock"
+          added?: boolean;                     // auto lock that filled an open slot
+          replaced?: { team: string; side: Side } | null } | null;  // the pick it replaced in this game
 }
 
 interface Pick {
@@ -59,7 +62,8 @@ interface Pick {
   manual: boolean;                       // user lock
   status: PickStatus;
   points: number;                        // graded points (final/live) or expected edge (open)
-  source: "points override" | "score override" | "nflverse" | "edge";
+  source: "points override" | "score override" | "nflverse"
+        | "nflverse (live override superseded)" | "no league line" | "edge";
   line_overridden: boolean;
 }
 
@@ -144,16 +148,16 @@ interface SchedulerStatus {
 | GET | `/api/week/{season}/{week}` | | `WeekView` (read only, uses the last logged lines) |
 | POST | `/api/week/{season}/{week}/init` | `{overwrite?: bool, use_market?: bool}` | Outcome |
 | POST | `/api/week/{season}/{week}/update` | `{force_alert?: bool}` | Outcome (fetches the market) |
-| PUT | `/api/week/{season}/{week}/picks` | `{teams: string[]}` (0 to n_picks) | Outcome |
+| PUT | `/api/week/{season}/{week}/picks` | `{teams: string[]}` (0 to n_picks) | Outcome (also removes locks on games not listed) |
 | POST | `/api/week/{season}/{week}/locks` | `{teams: string[]}` | Outcome |
 | DELETE | `/api/week/{season}/{week}/locks/{team}` | | Outcome |
 | PUT | `/api/week/{season}/{week}/lines` | `{team, spread: number \| "PK"}` (team's view) | Outcome |
-| PUT | `/api/week/{season}/{week}/scores` | `{team, team_points, opponent_points, live?: bool}` | Outcome |
-| PUT | `/api/week/{season}/{week}/points` | `{team, points, live?: bool}` | Outcome (also locks that team) |
-| DELETE | `/api/week/{season}/{week}/overrides/{team}` | query `kind=line\|lock\|score\|points` (repeatable; none = all) | Outcome |
+| PUT | `/api/week/{season}/{week}/scores` | `{team, team_points, opponent_points, live?: bool, force?: bool}` | Outcome; 400 before kickoff unless `force` |
+| PUT | `/api/week/{season}/{week}/points` | `{team, points, live?: bool, force?: bool}` | Outcome (also locks that team); 400 before kickoff unless `force`, and 400 if the team isn't one of your picks while all slots are full |
+| DELETE | `/api/week/{season}/{week}/overrides/{team}` | query `kind=line\|lock\|score\|points` (repeatable; none = all) | Outcome. Clearing points also removes the lock they added and restores the pick it replaced |
 | GET | `/api/week/{season}/{week}/snapshots` | | `{games: [{game_id, away, home, kickoff_utc, league_home_spread, series: [{t, home_spread, books, source}]}]}` |
 | GET | `/api/week/{season}/{week}/runs` | query `limit` | `Run[]`, newest first |
-| GET | `/api/week/{season}/{week}/score` | | `{picks: [{label, status, points, source}], summary: Summary}` |
+| GET | `/api/week/{season}/{week}/score` | | `{picks: [{label, status, points, source}], summary: Summary, warnings: string[]}` |
 | GET | `/api/history` | query `season` | `{seasons: number[], weeks: WeekRecord[], totals: {weeks, complete_weeks, final_points, movement_edge, avg_week}}` |
 | POST | `/api/history/refresh` | `{season?: number}` | `{updated: number, weeks: WeekRecord[]}` |
 | PUT | `/api/history/{season}/{week}` | any of the user fields of WeekRecord | `WeekRecord` |
@@ -186,3 +190,18 @@ Errors are recorded in the status and never stop the thread.
   `cover5/history.py`).
 * `data/settings.json`: settings saved from the app, applied over environment
   variables at startup. Local only; ignored by git.
+
+## Override rules
+
+* **Picks** are the full truth for the week: setting them removes any lock on
+  a game you didn't list, or on the other side of a game you did.
+* **Locks** fill a slot. Locking a team that isn't one of your picks while all
+  slots are full is allowed before its kickoff (the weakest open pick makes
+  room, and the alert says so) and refused after it.
+* **Points and scores** can only be entered once the game has kicked off
+  (`force` overrides this). A score typed for a future game usually means the
+  wrong week; the error names the previous week.
+* **Live** overrides give way to the nflverse final once it exists; **final**
+  overrides always win.
+* A game missing from one market fetch keeps its last logged line, so a fetch
+  and an override recompute always value every game the same way.

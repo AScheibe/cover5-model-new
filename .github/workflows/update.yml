@@ -14,8 +14,8 @@ on:
         description: >-
           A cover5 command, e.g. "update", "init-week", "picks IND CHI LAR TEN JAX",
           "lock TEN", "set-line IND -3.5", "set-points TEN 5.5", "set-score IND 30 13",
-          "clear IND", "overrides". Anything other than update/init-week is recorded
-          and then followed by a fresh update.
+          "clear IND", "overrides". Add "--week N" to fix a past week. Anything other
+          than update/init-week is recorded and then followed by a fresh update.
         default: "update"
 
 permissions:
@@ -64,9 +64,9 @@ jobs:
           echo "label=${ARGS[0]}" >> "$GITHUB_OUTPUT"
           case "${ARGS[0]}" in
             init-week)
-              python -m cover5 init-week || echo "week file already exists" ;;
+              python -m cover5 "${ARGS[@]}" || echo "init-week failed (week file already exists? add --overwrite)" ;;
             update)
-              python -m cover5 update || echo "update skipped (no league file yet?)" ;;
+              python -m cover5 "${ARGS[@]}" || echo "update skipped (no league file yet?)" ;;
             status|score-week|overrides)
               python -m cover5 "${ARGS[@]}" ;;
             *)

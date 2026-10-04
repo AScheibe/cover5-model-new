@@ -60,8 +60,9 @@ def lock_time_market(market: list[MarketLine], snapshots: pd.DataFrame | None,
     logged before its kickoff.
 
     After kickoff the odds feeds return in-game lines (or nothing), which say
-    nothing about what the pick was worth when it locked. Games without a
-    pre-kickoff snapshot keep whatever the feed returned.
+    nothing about what the pick was worth when it locked. A kicked-off game
+    with no pre-kickoff snapshot gets no market line (edge 0) unless the feed
+    line itself was fetched before kickoff.
     """
     now = now or datetime.now(timezone.utc)
     if snapshots is None or snapshots.empty:
@@ -75,6 +76,11 @@ def lock_time_market(market: list[MarketLine], snapshots: pd.DataFrame | None,
         s = snaps[(snaps["away"] == g.away) & (snaps["home"] == g.home)
                   & (snaps["fetched_at"] < pd.Timestamp(g.kickoff_utc))]
         if s.empty:
+            # No line logged before kickoff: never let an in-game line stand in for it.
+            m = by_pair.get((g.away, g.home))
+            if m is not None and pd.Timestamp(m.fetched_at) >= pd.Timestamp(g.kickoff_utc):
+                by_pair[(g.away, g.home)] = MarketLine(g.away, g.home, g.kickoff_utc, float("nan"),
+                                                       0, f"{m.source}@in-game", m.fetched_at)
             continue
         last = s.sort_values("fetched_at").iloc[-1]
         by_pair[(g.away, g.home)] = MarketLine(
@@ -113,9 +119,12 @@ def apply_locks(current: list[Pick], locks: dict) -> list[Pick]:
     is marked manual. Lock status from earlier runs is discarded so unlocking
     takes effect; kickoff locks are re-derived from the board on every run.
     """
+    prev = {p.game_id: p for p in current}
     out = [Pick(p.game_id, p.side, p.team, p.edge) for p in current if p.game_id not in locks]
     for gid, lk in locks.items():
-        out.append(Pick(gid, lk["side"], lk["team"], 0.0, locked=True, manual=True))
+        p = prev.get(gid)
+        edge = p.edge if p is not None and p.side == lk["side"] else 0.0
+        out.append(Pick(gid, lk["side"], lk["team"], edge, locked=True, manual=True))
     return out
 
 
@@ -150,6 +159,11 @@ def recommend(board: pd.DataFrame, current: list[Pick] | None,
                                locked=True, manual=p.manual))
             continue
         side = p.side
+        if pd.isna(r.market_home_spread) or pd.isna(r.league_home_spread):
+            # No usable line right now (a book pulled it, or it was never seeded):
+            # keep the pick at its last known edge instead of treating it as 0.
+            open_picks.append(Pick(p.game_id, side, _team(r, side), float(p.edge or 0.0)))
+            continue
         e = _edge_for(r, side)
         if e < -flip_margin:
             side = AWAY if side == HOME else HOME
@@ -170,7 +184,8 @@ def recommend(board: pd.DataFrame, current: list[Pick] | None,
         open_picks.append(Pick(r.game_id, r.best_side, r.best_team, float(r.edge)))
 
     while candidates and open_picks:
-        weakest = min(open_picks, key=lambda p: p.edge)
+        # Among equal edges drop the earliest kickoff: later games keep option value.
+        weakest = min(open_picks, key=lambda p: (p.edge, rows[p.game_id].kickoff_utc.timestamp()))
         cand = candidates[0]
         if cand.edge < weakest.edge + swap_margin:
             break

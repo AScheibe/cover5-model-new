@@ -110,12 +110,14 @@ class ScoreBody(_Body):
     team_points: float = Field(ge=0)
     opponent_points: float = Field(ge=0)
     live: bool = False
+    force: bool = False          # allow a game that hasn't kicked off
 
 
 class PointsBody(_Body):
     team: str
     points: float
     live: bool = False
+    force: bool = False          # allow a game that hasn't kicked off
 
 
 class RefreshBody(_Body):
@@ -345,11 +347,12 @@ def create_app(frontend_dist: Path | None = None, scheduler: Scheduler | None = 
     @app.put("/api/week/{season}/{week}/scores")
     def put_score(season: int, week: int, body: ScoreBody):
         return ok(service.set_score(season, week, body.team, body.team_points, body.opponent_points,
-                                    live=body.live).to_dict())
+                                    live=body.live, force=body.force).to_dict())
 
     @app.put("/api/week/{season}/{week}/points")
     def put_points(season: int, week: int, body: PointsBody):
-        return ok(service.set_points(season, week, body.team, body.points, live=body.live).to_dict())
+        return ok(service.set_points(season, week, body.team, body.points, live=body.live,
+                                     force=body.force).to_dict())
 
     @app.delete("/api/week/{season}/{week}/overrides/{team}")
     def delete_overrides(season: int, week: int, team: str, kind: Optional[list[str]] = Query(None)):

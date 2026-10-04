@@ -10,9 +10,11 @@ never interleave writes to the same week's files.
 """
 from __future__ import annotations
 
+import math
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
@@ -23,7 +25,7 @@ from cover5 import state as st
 from cover5.league import build_week_file, league_path, load_week_file
 from cover5.picks import (Pick, apply_locks, build_board, diff_picks, latest_snapshot_market,
                           lock_time_market, recommend)
-from cover5.providers import fetch_market
+from cover5.providers import MarketLine, fetch_market
 from cover5.schedule import current_week, load_games
 from cover5.scoring import AWAY, HOME, fmt_pick
 from cover5.tally import summarize, summary_line, tally_picks
@@ -105,14 +107,25 @@ def resolve_week(season: int | None, week: int | None, g: pd.DataFrame | None = 
 
 def parse_spread(s) -> float:
     if isinstance(s, (int, float)):
-        return float(s)
+        return finite(s, "spread", limit=60)
     s = str(s).strip()
     if s.upper() in ("PK", "EVEN", "PICK"):
         return 0.0
     try:
-        return float(s)
-    except ValueError as e:
+        return finite(s, "spread", limit=60)
+    except UserError as e:
         raise UserError(f"not a spread: {s!r} (use a number like -3.5 or PK)") from e
+
+
+def finite(x, what: str, limit: float = 200) -> float:
+    """A real, finite number within +-limit, or UserError."""
+    try:
+        v = float(x)
+    except (TypeError, ValueError) as e:
+        raise UserError(f"{what} must be a number") from e
+    if not math.isfinite(v) or abs(v) > limit:
+        raise UserError(f"{what} must be a finite number between -{limit:g} and {limit:g}")
+    return v
 
 
 def _load_league(season: int, week: int) -> pd.DataFrame:
@@ -161,6 +174,12 @@ def _warnings(picks: list[Pick], ov: dict, league: pd.DataFrame) -> list[str]:
             if gid not in gids:
                 w.append(f"{kind} override for {gid} does not match a game this week")
     picked = {p.game_id: p for p in picks}
+    lg = league.set_index("game_id")
+    for gid, p in picked.items():
+        if gid in lg.index and pd.isna(lg.loc[gid, "home_spread"]) and gid in ov.get("results", {}):
+            r = lg.loc[gid]
+            w.append(f"a score is recorded for {r.away}@{r.home} but there is no league line, so it "
+                     f"can't be graded; set the line for {p.team}")
     for gid, pt in ov.get("points", {}).items():
         p = picked.get(gid)
         if p is None:
@@ -173,12 +192,18 @@ def _warnings(picks: list[Pick], ov: dict, league: pd.DataFrame) -> list[str]:
 # --------------------------------------------------------------------------- core recompute
 def compute(season: int, week: int, market: list | None = None, *, reason: str,
             alert: bool = False, save: bool = False, force_alert: bool = False,
-            now: datetime | None = None, echo: bool = False) -> tuple[Computed, dict | None]:
+            now: datetime | None = None, echo: bool = False,
+            notes: list[str] | None = None) -> tuple[Computed, dict | None]:
     """Recompute picks from overrides + market. ``market=None`` uses the last logged lines.
 
     Returns the computation and, when ``alert`` is set, the alert dict.
     ``save`` writes the recommendation as the presumed current picks and records
-    the run in history. ``echo`` prints the alert (CLI).
+    the run in history. ``echo`` prints the alert (CLI). ``notes`` are extra
+    warnings to carry in the alert (e.g. an assumption an override forced).
+
+    A fetch that is missing a game (a book pulled the line) is topped up with
+    that game's last logged line, so a market update and an offline recompute
+    after an override always value every game the same way.
     """
     now = now or datetime.now(timezone.utc)
     g = games()
@@ -190,6 +215,11 @@ def compute(season: int, week: int, market: list | None = None, *, reason: str,
         market_source = {"kind": "snapshot", "fetched_at": _latest_fetch(snaps)}
     else:
         market_source = {"kind": "live", "fetched_at": now.isoformat(timespec="seconds")}
+        merged = {(m.away, m.home): MarketLine(m.away, m.home, m.kickoff_utc, m.home_spread, m.books,
+                                               f"{m.source}@last", m.fetched_at)
+                  for m in latest_snapshot_market(snaps)}
+        merged.update({(m.away, m.home): m for m in market})
+        market = list(merged.values())
     market = lock_time_market(market, snaps, league, now)
     s = st.load_state(season, week)
     current = apply_locks(st.picks_from_state(s), ov["locks"])
@@ -200,7 +230,7 @@ def compute(season: int, week: int, market: list | None = None, *, reason: str,
     # alert only lists changes the model wants, not the ones you just made.
     diff = diff_picks(current, picks)
     tallies = tally_picks(picks, league, drop_mismatched_points(ov, picks), _week_results(g, season, week))
-    warnings = _warnings(picks, ov, league)
+    warnings = _warnings(picks, ov, league) + list(notes or [])
     title, body = alerts.format_alert(season, week, picks, diff, board, tallies=tallies,
                                       warnings=warnings, reason=reason)
     c = Computed(season, week, now, league, ov, board, current, picks, tallies, diff, warnings,
@@ -350,11 +380,12 @@ def week_view(season: int, week: int, now: datetime | None = None) -> dict:
 
 
 def _after_change(season: int, week: int, reason: str, recompute: bool, echo: bool,
-                  messages: list[str]) -> Outcome:
+                  messages: list[str], notes: list[str] | None = None) -> Outcome:
     """Recompute from the last logged lines after an override, if there are any."""
     out = Outcome(messages=messages)
     if recompute and st.load_snapshots(season, week) is not None:
-        c, out.alert = compute(season, week, None, reason=reason, alert=True, save=True, echo=echo)
+        c, out.alert = compute(season, week, None, reason=reason, alert=True, save=True, echo=echo,
+                               notes=notes)
         out.view = build_view(c)
     else:
         if recompute:
@@ -409,8 +440,41 @@ def update(season: int, week: int, *, provider: str | None = None, force_alert: 
                        messages=[f"Fetched {len(market)} market lines."])
 
 
+ET = ZoneInfo("America/New_York")
+
+
+def _effective_picks(season: int, week: int, ov: dict) -> list[Pick]:
+    """The picks the tracker believes you hold, with your locks applied."""
+    return apply_locks(st.picks_from_state(st.load_state(season, week)), ov["locks"])
+
+
+def _set_state_pick(season: int, week: int, game_id: str, pick: Pick | None) -> None:
+    """Rewrite the presumed pick for one game (None removes it)."""
+    s = st.load_state(season, week)
+    recs = [p for p in st.picks_from_state(s) if p.game_id != game_id]
+    if pick is not None:
+        recs.append(Pick(pick.game_id, pick.side, pick.team, pick.edge))
+    s["recommended"] = st.picks_to_state(recs)
+    st.save_state(season, week, s)
+
+
+def _require_kicked_off(r, week: int, force: bool) -> None:
+    """Scores only exist once a game starts; catches overrides typed into the wrong week."""
+    if force or datetime.now(timezone.utc) >= r.kickoff_utc:
+        return
+    k = pd.Timestamp(r.kickoff_utc).tz_convert(ET)
+    hint = (f" If you meant last week's game, use week {week - 1} (--week {week - 1})." if week > 1 else "")
+    raise UserError(f"{r.away}@{r.home} hasn't kicked off yet (kickoff {k:%a %b %d %I:%M %p} ET), "
+                    f"so it has no score to enter.{hint}")
+
+
 def set_picks(season: int, week: int, teams: list[str], *, recompute: bool = True,
               echo: bool = False) -> Outcome:
+    """Replace the picks the tracker thinks you hold with the ones you actually entered.
+
+    This is the full truth for the week, so any lock on a game you didn't list
+    (or on the other side of a game you did) is removed.
+    """
     with LOCK:
         league = _load_league(season, week)
         if len(teams) > config.N_PICKS:
@@ -422,46 +486,86 @@ def set_picks(season: int, week: int, teams: list[str], *, recompute: bool = Tru
                 raise UserError(f"two picks in {r.away}@{r.home}; pick one side per game")
             seen.add(r.game_id)
             chosen.append(Pick(r.game_id, side, t, 0.0))
+        ov = ovr.load_overrides(season, week)
+        by_game = {p.game_id: p for p in chosen}
+        msgs = ["Your picks are now: " + (", ".join(p.team for p in chosen) or "none")]
+        for gid, lk in list(ov["locks"].items()):
+            p = by_game.get(gid)
+            if p is None or p.side != lk["side"]:
+                del ov["locks"][gid]
+                msgs.append(f"Removed your lock on {lk['team']} (it isn't in the picks you entered).")
+        ovr.save_overrides(season, week, ov)
         s = st.load_state(season, week)
         s["recommended"] = st.picks_to_state(chosen)
         s.pop("confirmed", None)
         st.save_state(season, week, s)
-        msgs = ["Your picks are now: " + (", ".join(p.team for p in chosen) or "none")]
         if len(chosen) < config.N_PICKS:
             msgs.append(f"{config.N_PICKS - len(chosen)} open slot(s); the model will suggest teams for them.")
         return _after_change(season, week, "after you set your picks", recompute, echo, msgs)
 
 
 def lock(season: int, week: int, teams: list[str], *, recompute: bool = True, echo: bool = False) -> Outcome:
+    """Pin picks. A locked pick fills a slot and is never swapped or flipped."""
     with LOCK:
         league = _load_league(season, week)
-        ov = ovr.load_overrides(season, week)
-        presumed = {p.game_id: p for p in st.picks_from_state(st.load_state(season, week))}
-        msgs = []
+        resolved, seen = [], set()
         for team in teams:
             r, t, side = team_game(league, team)
-            ov["locks"][r.game_id] = {"team": t, "side": side}
-            note = ""
-            if r.game_id not in presumed:
-                note = (" It wasn't one of your picks, so the weakest open pick gets dropped to make room."
-                        " If you replaced a different team, set your picks to your actual five.")
-            elif presumed[r.game_id].team != t:
-                note = f" (replaces {presumed[r.game_id].team} in that game)"
-            msgs.append(f"Locked {t}.{note}")
+            if r.game_id in seen:
+                raise UserError(f"two picks in {r.away}@{r.home}; pick one side per game")
+            seen.add(r.game_id)
+            resolved.append((r, t, side))
+        ov = ovr.load_overrides(season, week)
+        current = {p.game_id: p for p in _effective_picks(season, week, ov)}
+        now = datetime.now(timezone.utc)
+        # Validate everything before writing anything.
+        count = len(current)
+        for r, t, side in resolved:
+            if r.game_id not in current:
+                if count >= config.N_PICKS and now >= r.kickoff_utc:
+                    raise UserError(
+                        f"{t}'s game has kicked off and {t} isn't one of your {config.N_PICKS} picks, so the "
+                        f"tracker can't tell which pick it replaced. Set your picks to the {config.N_PICKS} "
+                        f"you actually have instead.")
+                count += 1
+        msgs, notes = [], []
+        count = len(current)
+        for r, t, side in resolved:
+            cur = current.get(r.game_id)
+            ov["locks"][r.game_id] = {"team": t, "side": side,
+                                      "replaced": ({"team": cur.team, "side": cur.side}
+                                                   if cur is not None and cur.team != t else None)}
+            if cur is None:
+                if count >= config.N_PICKS:
+                    note = (f"{t} wasn't one of your picks, so the weakest open pick is dropped to make room. "
+                            f"If you already replaced a different team in the app, set your picks to the "
+                            f"{config.N_PICKS} you actually have.")
+                    msgs.append(f"Locked {t}. {note}")
+                    notes.append(note)
+                else:
+                    msgs.append(f"Locked {t} (fills an open slot).")
+                count += 1
+            elif cur.team != t:
+                msgs.append(f"Locked {t} (replaces {cur.team} in that game).")
+            else:
+                msgs.append(f"Locked {t}.")
         ovr.save_overrides(season, week, ov)
-        return _after_change(season, week, "after you locked a pick", recompute, echo, msgs)
+        return _after_change(season, week, "after you locked a pick", recompute, echo, msgs, notes)
 
 
 def unlock(season: int, week: int, teams: list[str], *, recompute: bool = True, echo: bool = False) -> Outcome:
+    """Stop pinning picks. They stay your picks until the model suggests otherwise."""
     with LOCK:
         league = _load_league(season, week)
         ov = ovr.load_overrides(season, week)
         msgs = []
         for team in teams:
             r, t, _ = team_game(league, team)
-            if ovr.clear(ov, r.game_id, ("locks",)):
+            lk = ov["locks"].get(r.game_id)
+            if lk and ovr.clear(ov, r.game_id, ("locks",)):
+                _set_state_pick(season, week, r.game_id, Pick(r.game_id, lk["side"], lk["team"], 0.0))
                 started = datetime.now(timezone.utc) >= r.kickoff_utc
-                msgs.append(f"Unlocked {r.away}@{r.home}. It stays your pick until the model suggests otherwise"
+                msgs.append(f"Unlocked {lk['team']}. It stays your pick until the model suggests otherwise"
                             + (" (it has kicked off, so it stays locked)." if started else "."))
             else:
                 msgs.append(f"No lock on {r.away}@{r.home}")
@@ -487,44 +591,70 @@ def set_line(season: int, week: int, team: str, spread, *, recompute: bool = Tru
 
 
 def set_score(season: int, week: int, team: str, team_points, opponent_points, *, live: bool = False,
-              recompute: bool = True, echo: bool = False) -> Outcome:
+              force: bool = False, recompute: bool = True, echo: bool = False) -> Outcome:
+    """Record a game's score (team's points first). Grades whichever side you picked."""
     with LOCK:
         league = _load_league(season, week)
         r, t, side = team_game(league, team)
-        try:
-            tp, op = float(team_points), float(opponent_points)
-        except (TypeError, ValueError) as e:
-            raise UserError("scores must be numbers") from e
+        tp = finite(team_points, "scores", limit=200)
+        op = finite(opponent_points, "scores", limit=200)
         if tp < 0 or op < 0:
             raise UserError("scores can't be negative")
+        _require_kicked_off(r, week, force)
         home_score, away_score = (tp, op) if side == HOME else (op, tp)
         ov = ovr.load_overrides(season, week)
         ov["results"][r.game_id] = {"home_score": home_score, "away_score": away_score, "final": not live}
         ovr.save_overrides(season, week, ov)
         msgs = [f"Score recorded: {r.away} {away_score:g}, {r.home} {home_score:g} ({'live' if live else 'final'})"]
+        if pd.isna(r.home_spread) and r.game_id not in ov["lines"]:
+            msgs.append(f"There's no league line for {r.away}@{r.home}, so this can't be graded until you set one.")
         return _after_change(season, week, "after your score override", recompute, echo, msgs)
 
 
-def set_points(season: int, week: int, team: str, points, *, live: bool = False,
+def set_points(season: int, week: int, team: str, points, *, live: bool = False, force: bool = False,
                recompute: bool = True, echo: bool = False) -> Outcome:
+    """Record a pick's score exactly as the league app shows it.
+
+    Points only exist for a pick you hold, so this also locks that team as your
+    pick in its game. It refuses a team that isn't one of your picks when all
+    slots are full, rather than guessing which pick it replaced.
+    """
     with LOCK:
         league = _load_league(season, week)
         r, t, side = team_game(league, team)
-        try:
-            val = float(points)
-        except (TypeError, ValueError) as e:
-            raise UserError("points must be a number") from e
+        val = finite(points, "points", limit=200)
+        _require_kicked_off(r, week, force)
         ov = ovr.load_overrides(season, week)
+        current = {p.game_id: p for p in _effective_picks(season, week, ov)}
+        cur = current.get(r.game_id)
+        if cur is None and len(current) >= config.N_PICKS:
+            raise UserError(f"{t} isn't one of your {config.N_PICKS} picks. Set your picks to the "
+                            f"{config.N_PICKS} you actually have, then enter {t}'s points.")
         ov["points"][r.game_id] = {"team": t, "value": val, "final": not live}
-        # Points only exist for a pick you hold, so the team is your pick in that game.
-        ov["locks"][r.game_id] = {"team": t, "side": side}
+        existing = ov["locks"].get(r.game_id)
+        if not (existing and existing["team"] == t):
+            ov["locks"][r.game_id] = {
+                "team": t, "side": side, "auto": True, "added": cur is None,
+                "replaced": {"team": cur.team, "side": cur.side} if cur is not None and cur.team != t else None}
         ovr.save_overrides(season, week, ov)
-        msgs = [f"{t} scored {val:+g} ({'live' if live else 'final'}); locked {t} as your pick in that game."]
+        tag = "live" if live else "final"
+        if cur is None:
+            msgs = [f"{t} scored {val:+g} ({tag}); added {t} to your picks in the open slot."]
+        elif cur.team != t:
+            msgs = [f"{t} scored {val:+g} ({tag}); {t} replaces {cur.team} as your pick in that game."]
+        else:
+            msgs = [f"{t} scored {val:+g} ({tag}); locked {t} as your pick in that game."]
         return _after_change(season, week, "after your points override", recompute, echo, msgs)
 
 
 def clear(season: int, week: int, team: str, kinds: list[str] | None = None, *,
           recompute: bool = True, echo: bool = False) -> Outcome:
+    """Remove overrides for the game a team plays in.
+
+    Clearing points also removes the lock that entering them added, and puts
+    back the pick it replaced. Clearing a lock you set yourself keeps that team
+    as an open pick, like unlock.
+    """
     with LOCK:
         league = _load_league(season, week)
         r, t, _ = team_game(league, team)
@@ -533,11 +663,25 @@ def clear(season: int, week: int, team: str, kinds: list[str] | None = None, *,
         except KeyError as e:
             raise UserError(f"unknown override kind {e.args[0]!r}") from e
         ov = ovr.load_overrides(season, week)
+        lk = ov["locks"].get(r.game_id)
+        if "points" in ks and lk and lk.get("auto") and "locks" not in ks:
+            ks = ks + ("locks",)          # that lock was a side effect of entering points
         removed = ovr.clear(ov, r.game_id, ks)
         ovr.save_overrides(season, week, ov)
         if not removed:
             return Outcome(view=week_view(season, week), messages=[f"Nothing to clear for {r.away}@{r.home}"])
         msgs = [f"Cleared {', '.join(removed)} for {r.away}@{r.home}"]
+        if "locks" in removed and lk:
+            if lk.get("auto"):
+                rep = lk.get("replaced")
+                if rep:
+                    _set_state_pick(season, week, r.game_id, Pick(r.game_id, rep["side"], rep["team"], 0.0))
+                    msgs.append(f"Put {rep['team']} back as your pick in that game.")
+                elif lk.get("added"):
+                    _set_state_pick(season, week, r.game_id, None)
+                    msgs.append(f"Removed {lk['team']} from your picks (it was added when you entered its points).")
+            else:
+                _set_state_pick(season, week, r.game_id, Pick(r.game_id, lk["side"], lk["team"], 0.0))
         return _after_change(season, week, "after clearing an override", recompute, echo, msgs)
 
 
@@ -559,7 +703,8 @@ def score_week(season: int, week: int, refresh: bool = True) -> dict:
         lines.append({"label": fmt_pick(p.team, r.away if is_home else r.home, r.home_spread, is_home),
                       "status": t.status, "points": t.points, "source": t.source})
     summ = summarize(tallies)
-    return {"picks": lines, "summary": {**summ, "line": summary_line(summ)}}
+    return {"picks": lines, "summary": {**summ, "line": summary_line(summ)},
+            "warnings": _warnings(picks, ov, league)}
 
 
 def refresh_history(seasons: list[int] | None = None) -> int:

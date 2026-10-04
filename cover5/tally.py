@@ -2,7 +2,9 @@
 games in progress, and expected points (edge) for picks still to be decided.
 
 Precedence for a pick's score: points override > score override > nflverse
-final result > not yet graded (expected = edge).
+final result > not yet graded (expected = edge). A *live* override gives way
+to the nflverse final once one exists; a *final* override always wins. A game
+with a score but no league line stays ungraded (source "no league line").
 """
 from __future__ import annotations
 
@@ -38,23 +40,32 @@ def tally_picks(picks: list[Pick], league: pd.DataFrame, ov: dict,
     lg = league.set_index("game_id")
     out = []
     for p in picks:
+        hs = lg.loc[p.game_id, "home_spread"] if p.game_id in lg.index else float("nan")
+        nfl_margin = _nflverse_margin(results, p.game_id)
+        nfl = (PickTally(p, FINAL, pick_score(nfl_margin, float(hs), p.side), "nflverse")
+               if nfl_margin is not None and pd.notna(hs) else None)
         pts = ov.get("points", {}).get(p.game_id)
         if pts is not None:
-            out.append(PickTally(p, FINAL if pts.get("final", True) else LIVE,
-                                 float(pts["value"]), "points override"))
+            if pts.get("final", True) or nfl is None:
+                out.append(PickTally(p, FINAL if pts.get("final", True) else LIVE,
+                                     float(pts["value"]), "points override"))
+            else:   # a live number typed mid-game gives way to the official final
+                out.append(PickTally(p, FINAL, nfl.points, "nflverse (live override superseded)"))
             continue
-        hs = lg.loc[p.game_id, "home_spread"] if p.game_id in lg.index else float("nan")
         res = ov.get("results", {}).get(p.game_id)
         if res is not None and pd.notna(hs):
-            margin = float(res["home_score"]) - float(res["away_score"])
-            out.append(PickTally(p, FINAL if res.get("final", True) else LIVE,
-                                 pick_score(margin, float(hs), p.side), "score override"))
+            if res.get("final", True) or nfl is None:
+                margin = float(res["home_score"]) - float(res["away_score"])
+                out.append(PickTally(p, FINAL if res.get("final", True) else LIVE,
+                                     pick_score(margin, float(hs), p.side), "score override"))
+            else:
+                out.append(PickTally(p, FINAL, nfl.points, "nflverse (live override superseded)"))
             continue
-        margin = _nflverse_margin(results, p.game_id)
-        if margin is not None and pd.notna(hs):
-            out.append(PickTally(p, FINAL, pick_score(margin, float(hs), p.side), "nflverse"))
+        if nfl is not None:
+            out.append(nfl)
             continue
-        out.append(PickTally(p, OPEN, float(p.edge), "edge"))
+        source = "no league line" if pd.isna(hs) and (res is not None or nfl_margin is not None) else "edge"
+        out.append(PickTally(p, OPEN, float(p.edge), source))
     return out
 
 

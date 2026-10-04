@@ -71,7 +71,18 @@ recomputes the picks from the last logged lines and alerts if they change.
 | `overrides`, `clear IND [--kind line]` | list or remove overrides | |
 
 Scores resolve in this order: points override, then score override, then the
-nflverse final, then the pick's expected edge if the game isn't graded yet.
+nflverse final, then the pick's expected edge if the game isn't graded yet. A
+`--live` number gives way to the official final once nflverse has it.
+
+Some guard rails keep the tracker honest:
+
+* `picks` is the full truth: it removes any lock on a game you didn't list.
+* Scores and points can only be entered once a game has kicked off. To fix a
+  past week, add `--week N` (it works after any command, e.g.
+  `set-points NO 3.5 --week 4`, including from the phone workflow).
+* Points for a team that isn't one of your picks are refused while all five
+  slots are full, so the tracker never guesses which pick you replaced.
+* `clear TEAM` after `set-points` puts back the pick the points replaced.
 Alerts show each pick as `[FINAL +13.5]`, `[LIVE +8]`, `[LOCKED]` or
 `[LOCKED by you]`, and end with a running week total:
 

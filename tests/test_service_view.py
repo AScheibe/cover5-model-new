@@ -19,7 +19,7 @@ def test_view_is_json_and_history_is_recorded(week):
     assert cle["label"] == "CLE -3 vs PIT"
     assert v["summary"]["live"] == 8.0
     g = next(g for g in v["games"] if g["home"] == "CLE")
-    assert g["picked_team"] == "CLE" and g["lock"] == {"team": "CLE", "side": "HOME"}
+    assert g["picked_team"] == "CLE" and {k: g["lock"][k] for k in ("team", "side")} == {"team": "CLE", "side": "HOME"}
     assert v["overrides"]["points"][0]["value"]["value"] == 8.0
     # the last change is what the user was told to do after setting picks
     assert v["last_change"] and set(v["last_change"]["dropped"]) == {"DAL", "JAX"}

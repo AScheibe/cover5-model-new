@@ -259,8 +259,9 @@ def test_scenario_unlock_and_clear(week, capsys):
     assert "2026_04_DAL_HOU" in _ov()["locks"]
     week("unlock", "DAL")
     assert "2026_04_DAL_HOU" not in _ov()["locks"]
+    week("picks", "WAS", "BAL", "BUF", "CHI", "HOU")
     week("set-line", "HOU", "-1")
-    week("set-points", "HOU", "3")
+    week("set-points", "HOU", "3", "--force")
     week("clear", "HOU", "--kind", "line")
     ov = _ov()
     assert "2026_04_DAL_HOU" not in ov["lines"] and "2026_04_DAL_HOU" in ov["points"]
@@ -271,7 +272,7 @@ def test_scenario_unlock_and_clear(week, capsys):
 
 def test_scenario_points_for_wrong_team_is_ignored_with_warning(week, capsys):
     week("update")
-    week("set-points", "CHI", "6")                     # auto-locks CHI
+    week("set-points", "CHI", "6", "--force")          # auto-locks CHI
     week("unlock", "CHI")
     week("lock", "NYJ")                                # now your pick in that game is NYJ
     capsys.readouterr()
