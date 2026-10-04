@@ -16,7 +16,8 @@ const isTableOfRows = (v: Json | undefined): v is { [k: string]: Obj } =>
 const isArrayOfRows = (v: Json | undefined): v is Obj[] => Array.isArray(v) && v.length > 0 && v.every(isFlatObj);
 
 export function humanKey(k: string): string {
-  return k.replace(/_/g, " ").replace(/\bpts\b/, "points").replace(/\bse\b/, "SE").replace(/\bsd\b/, "SD");
+  const h = k.replace(/_/g, " ").replace(/\bpts\b/, "points").replace(/\bse\b/, "SE").replace(/\bsd\b/, "SD");
+  return h.charAt(0).toUpperCase() + h.slice(1);
 }
 
 /** Probabilities and rates read better as percentages. */
@@ -29,7 +30,8 @@ export function fmtValue(v: Json, key = ""): string {
   if (typeof v === "boolean") return v ? "yes" : "no";
   if (typeof v === "number") {
     if (isProbKey(key) && v >= 0 && v <= 1) return `${(v * 100).toFixed(1)}%`;
-    if (Number.isInteger(v)) return v.toLocaleString();
+    // Separators only for big counts, so years and seeds stay plain (2007, not 2,007).
+    if (Number.isInteger(v)) return Math.abs(v) >= 10000 ? v.toLocaleString() : String(v);
     const a = Math.abs(v);
     return v.toFixed(a >= 100 ? 1 : a >= 1 ? 2 : 3);
   }

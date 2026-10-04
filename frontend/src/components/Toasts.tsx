@@ -35,7 +35,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const push = useCallback(
     (t: Omit<Toast, "id">) => {
       const id = next.current++;
-      setToasts((ts) => [...ts.slice(-5), { ...t, id }]);
+      // One copy of a message at a time; keep the newest four.
+      setToasts((ts) => [...ts.filter((x) => !(x.text === t.text && x.title === t.title)), { ...t, id }].slice(-4));
       window.setTimeout(() => dismiss(id), TTL[t.kind]);
     },
     [dismiss],

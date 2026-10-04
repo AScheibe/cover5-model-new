@@ -4,6 +4,7 @@ import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, X
 import { api } from "../api/client";
 import type { HistoryResponse, WeekRecord, WeekRecordUserFields } from "../api/types";
 import { EditableCell } from "../components/EditableCell";
+import { ErrorBoundary } from "../components/ErrorBoundary";
 import { useMeta } from "../components/MetaContext";
 import { Loading, Spinner } from "../components/Spinner";
 import { teamStyle } from "../components/Team";
@@ -231,6 +232,7 @@ export function HistoryPage() {
           )}
 
           {chart.length > 0 && (
+            <ErrorBoundary label="Cumulative points">
             <section className="panel chart-panel" aria-label="Cumulative points">
               <div className="panel-head">
                 <h2>Cumulative points vs movement edge</h2>
@@ -248,12 +250,13 @@ export function HistoryPage() {
                       formatter={(v: number, name: string) => [fmtPoints(v, 1), name]}
                     />
                     <Legend wrapperStyle={{ fontSize: 12, color: INK }} />
-                    <Line type="monotone" dataKey="points" name="Points (graded)" stroke={SERIES[0]} strokeWidth={2} dot={{ r: 4 }} isAnimationActive={false} />
-                    <Line type="monotone" dataKey="edge" name="Movement edge" stroke={SERIES[1]} strokeWidth={2} strokeDasharray="6 4" dot={{ r: 4 }} isAnimationActive={false} />
+                    <Line type="linear" dataKey="points" name="Points (graded)" stroke={SERIES[0]} strokeWidth={2} dot={{ r: 4 }} isAnimationActive={false} />
+                    <Line type="linear" dataKey="edge" name="Movement edge" stroke={SERIES[1]} strokeWidth={2} strokeDasharray="6 4" dot={{ r: 4 }} isAnimationActive={false} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
             </section>
+            </ErrorBoundary>
           )}
         </>
       )}

@@ -3,6 +3,7 @@ import { Navigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import type { Game, Pick } from "../api/types";
 import { ConfirmDialog } from "../components/Dialog";
+import { ErrorBoundary } from "../components/ErrorBoundary";
 import { useMeta } from "../components/MetaContext";
 import { Loading } from "../components/Spinner";
 import { replacePick, togglePick } from "../lib/picks";
@@ -213,10 +214,33 @@ function WeekScreen({ season, week }: { season: number; week: number }) {
               onEditScore={(g) => setDialog({ kind: "score", game: g })}
               onLockToggle={(g) => g.picked_team && lockTeam(g.picked_team, !!g.lock)}
             />
+            <div className="table-foot">
+              <button
+                type="button"
+                className="link-btn small"
+                disabled={isBusy}
+                onClick={() =>
+                  setDialog({
+                    kind: "confirm",
+                    title: "Re-seed league lines?",
+                    message:
+                      "This replaces the league sheet with lines from the current market. Your line overrides still apply on top. Only do this if the sheet was seeded wrong.",
+                    confirmLabel: "Re-seed from market",
+                    action: () => void run("init", () => api.init(season, week, { overwrite: true, use_market: true })),
+                  })
+                }
+              >
+                Re-seed league lines...
+              </button>
+            </div>
           </section>
           <div className="two-col">
-            <MovementChart season={season} week={week} games={games} picks={picks} version={version} />
-            <AlertLog season={season} week={week} version={version} />
+            <ErrorBoundary label="Line movement" resetKey={version}>
+              <MovementChart season={season} week={week} games={games} picks={picks} version={version} />
+            </ErrorBoundary>
+            <ErrorBoundary label="Alert log" resetKey={version}>
+              <AlertLog season={season} week={week} version={version} />
+            </ErrorBoundary>
           </div>
         </div>
       )}

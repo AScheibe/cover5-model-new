@@ -12,7 +12,7 @@ const backtest = {
     RANDOM: { weeks: 330, mean_week: -0.027, p_week_positive: 0.4965, z_vs_random: null },
     "MOVEMENT-TOP5": { weeks: 330, mean_week: 10.73, p_week_positive: 0.6521, z_vs_random: 6.48 },
   },
-  oracle_check: { slope_se: 0.105, buckets: [{ bucket: "0", n: 1083, cover_rate: 0.511 }, { bucket: "1", n: 900, cover_rate: 0.55 }] },
+  oracle_check: { slope_se: 0.105, buckets: [{ bucket: "0", n: 10830, cover_rate: 0.511 }, { bucket: "1", n: 900, cover_rate: 0.55 }] },
 };
 
 describe("backtest page", () => {
@@ -20,14 +20,15 @@ describe("backtest page", () => {
     const server = mockServer();
     server.on("GET /api/backtest", () => backtest);
     renderApp("/backtest");
-    const strategies = await screen.findByRole("heading", { name: "strategies" });
+    const strategies = await screen.findByRole("heading", { name: "Strategies" });
     const table = within(strategies.closest("section")!).getByRole("table");
     expect(within(table).getByRole("rowheader", { name: "MOVEMENT-TOP5" })).toBeInTheDocument();
     expect(within(table).getByText("65.2%")).toBeInTheDocument();
     expect(within(table).getByText("10.73")).toBeInTheDocument();
     expect(screen.getByText("nflverse 2007-2025")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "buckets" })).toBeInTheDocument();
-    expect(screen.getByText("1,083")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Buckets" })).toBeInTheDocument();
+    expect(screen.getByText("10,830")).toBeInTheDocument();
+    expect(screen.getByText("2007, 2025")).toBeInTheDocument();
   });
 
   it("explains how to generate results on 404", async () => {

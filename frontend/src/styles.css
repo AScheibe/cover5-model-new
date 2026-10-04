@@ -189,12 +189,8 @@ legend { font-weight: 600; color: var(--text-2); font-size: 13px; margin-bottom:
 .pick-points { display: flex; flex-direction: column; align-items: flex-end; line-height: 1; }
 .pick-points-num { font-size: 34px; font-weight: 900; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .pick-points-unit { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-top: 4px; font-weight: 700; }
-.pick-points.expected .pick-points-num { font-size: 26px; font-weight: 700; color: transparent; -webkit-text-stroke: 1px currentColor; }
-.pick-points.expected.pos { color: var(--green); }
-.pick-points.expected.neg { color: var(--red); }
-.pick-points.expected.pos .pick-points-num { -webkit-text-stroke: 0; color: rgba(47, 211, 122, 0.75); font-style: italic; }
-.pick-points.expected.neg .pick-points-num { -webkit-text-stroke: 0; color: rgba(255, 93, 98, 0.75); font-style: italic; }
-.pick-points.expected.zero .pick-points-num { -webkit-text-stroke: 0; color: var(--text-2); font-style: italic; }
+.pick-points.expected .pick-points-num { font-size: 26px; font-weight: 700; font-style: italic; opacity: 0.8; }
+.pick-points.expected .pick-points-unit { color: var(--text-2); }
 .pick-label { font-weight: 800; font-size: 15px; }
 .pick-meta { color: var(--text-2); font-size: 12px; }
 .pick-src { color: var(--amber); }
@@ -245,6 +241,8 @@ td.num { text-align: right; white-space: nowrap; }
 .cell-btn:disabled { cursor: not-allowed; }
 .cell-btn.muted { color: var(--muted); }
 .cell-btn.overridden { color: var(--amber); font-weight: 700; }
+.table-foot { margin-top: 10px; text-align: right; }
+.link-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .sheet-note { display: block; font-size: 11px; color: var(--muted); }
 .edge { font-weight: 700; }
 .edge strong { color: var(--text); }
@@ -362,6 +360,9 @@ td.num { text-align: right; white-space: nowrap; }
   .stat:nth-child(-n + 2) { border-bottom: 1px solid var(--line); }
   .grid-2, .score-inputs { grid-template-columns: 1fr; }
   .week-tools { width: 100%; }
+  .week-nav { flex-wrap: nowrap; width: 100%; }
+  .week-nav .select { min-width: 0; flex: 1 1 auto; }
+  .week-nav .btn-icon { flex: 0 0 34px; }
   .fetched { flex-basis: 100%; order: 3; }
   .fetched .muted { display: none; }
   h1 { font-size: 20px; }

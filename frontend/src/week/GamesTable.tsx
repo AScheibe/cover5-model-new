@@ -74,11 +74,11 @@ export function GamesTable({ games, busy, onToggleTeam, onEditLine, onEditScore,
           <tr>
             <th scope="col">Kickoff</th>
             <th scope="col">Game</th>
+            <th scope="col">Pick</th>
             <th scope="col">League line</th>
             <th scope="col">Market</th>
             <th scope="col">Edge</th>
             <th scope="col">Result</th>
-            <th scope="col">Pick</th>
             <th scope="col">Lock</th>
           </tr>
         </thead>
@@ -97,6 +97,12 @@ export function GamesTable({ games, busy, onToggleTeam, onEditLine, onEditScore,
                 </td>
                 <td className="nowrap matchup">
                   {g.away} <span className="muted">@</span> {g.home}
+                </td>
+                <td>
+                  <div className="pick-btns">
+                    <TeamPickButton game={g} team={g.away} busy={busy} onToggle={() => onToggleTeam(g, g.away)} />
+                    <TeamPickButton game={g} team={g.home} busy={busy} onToggle={() => onToggleTeam(g, g.home)} />
+                  </div>
                 </td>
                 <td className="nowrap">
                   <button
@@ -127,12 +133,6 @@ export function GamesTable({ games, busy, onToggleTeam, onEditLine, onEditScore,
                 </td>
                 <td className="nowrap">
                   <ResultCell game={g} busy={busy} onEdit={() => onEditScore(g)} />
-                </td>
-                <td>
-                  <div className="pick-btns">
-                    <TeamPickButton game={g} team={g.away} busy={busy} onToggle={() => onToggleTeam(g, g.away)} />
-                    <TeamPickButton game={g} team={g.home} busy={busy} onToggle={() => onToggleTeam(g, g.home)} />
-                  </div>
                 </td>
                 <td>
                   {g.picked_team && (

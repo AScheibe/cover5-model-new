@@ -113,7 +113,13 @@ function PicksEdgeChart({ picks, byId }: { picks: Pick[]; byId: Map<string, Snap
           <LineChart data={data} margin={{ top: 8, right: 16, bottom: 4, left: 4 }}>
             <CartesianGrid stroke={GRID} vertical={false} />
             <XAxis dataKey="t" type="number" scale="time" domain={["dataMin", "dataMax"]} tickFormatter={tickTime} stroke={INK} tick={{ fill: INK, fontSize: 11 }} />
-            <YAxis stroke={INK} tick={{ fill: INK, fontSize: 11 }} width={44} label={{ value: "edge (pts)", angle: -90, position: "insideLeft", fill: INK, fontSize: 11 }} />
+            <YAxis
+              stroke={INK}
+              tick={{ fill: INK, fontSize: 11 }}
+              width={44}
+              allowDecimals={false}
+              domain={[(lo: number) => Math.floor(Math.min(0, lo)), (hi: number) => Math.ceil(Math.max(1, hi))]}
+              label={{ value: "edge (pts)", angle: -90, position: "insideLeft", fill: INK, fontSize: 11 }} />
             <ReferenceLine y={0} stroke="#5d6f95" />
             <Tooltip
               contentStyle={{ background: "#0d1628", border: "1px solid #2a3b5e", borderRadius: 8 }}
@@ -137,7 +143,7 @@ function GameChart({ sg, game }: { sg: SnapshotGame; game: Game | undefined }) {
   const opp = isHome ? sg.away : sg.home;
   const league = teamSpread(sg.league_home_spread, isHome);
   const data = sg.series
-    .map((pt) => ({ t: new Date(pt.t).getTime(), market: teamSpread(pt.home_spread, isHome), books: pt.books }))
+    .map((pt) => ({ t: new Date(pt.t).getTime(), market: teamSpread(pt.home_spread, isHome), league, books: pt.books }))
     .filter((r) => r.market != null)
     .sort((a, b) => a.t - b.t);
   const values = data.map((d) => d.market as number).concat(league == null ? [] : [league]);
@@ -163,16 +169,16 @@ function GameChart({ sg, game }: { sg: SnapshotGame; game: Game | undefined }) {
               width={48}
               label={{ value: `${team} spread`, angle: -90, position: "insideLeft", fill: INK, fontSize: 11 }}
             />
-            {league != null && (
-              <ReferenceLine y={league} stroke="#e8eefc" strokeDasharray="5 4" label={{ value: `League ${fmtSpread(league)}`, fill: "#e8eefc", fontSize: 11, position: "insideTopRight" }} />
-            )}
             <Tooltip
               contentStyle={{ background: "#0d1628", border: "1px solid #2a3b5e", borderRadius: 8 }}
               labelFormatter={(v) => fmtDateTime(new Date(Number(v)).toISOString())}
-              formatter={(v: number) => [`${team} ${fmtSpread(v)}`, "Market"]}
+              formatter={(v: number, name: string) => [`${team} ${fmtSpread(v)}`, name]}
             />
-            <Legend wrapperStyle={{ fontSize: 12, color: INK }} payload={[{ value: `Market (${team} view)`, type: "line", color: SERIES[0] }, ...(league != null ? [{ value: "League line (frozen)", type: "plainline" as const, color: "#e8eefc" }] : [])]} />
+            <Legend wrapperStyle={{ fontSize: 12, color: INK }} />
             <Line type="stepAfter" dataKey="market" name="Market" stroke={SERIES[0]} strokeWidth={2} dot={data.length < 30 ? { r: 3 } : false} isAnimationActive={false} />
+            {league != null && (
+              <Line type="linear" dataKey="league" name={`League line (frozen ${fmtSpread(league)})`} stroke="#e8eefc" strokeWidth={1.5} strokeDasharray="5 4" dot={false} activeDot={false} isAnimationActive={false} />
+            )}
           </LineChart>
         </ResponsiveContainer>
       </div>

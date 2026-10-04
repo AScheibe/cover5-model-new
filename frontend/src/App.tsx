@@ -28,9 +28,12 @@ function NavBar() {
         <NavLink to="/backtest">Backtest</NavLink>
         <NavLink to="/settings">Settings</NavLink>
       </div>
-      <div className="nav-right">
-        <SchedulerPill status={meta?.scheduler} />
-      </div>
+      {/* The week header carries its own scheduler pill. */}
+      {!loc.pathname.startsWith("/week") && loc.pathname !== "/" && (
+        <div className="nav-right">
+          <SchedulerPill status={meta?.scheduler} />
+        </div>
+      )}
     </nav>
   );
 }
