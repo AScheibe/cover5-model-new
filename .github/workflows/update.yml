@@ -1,0 +1,63 @@
+name: cover5 line tracker
+
+on:
+  schedule:
+    # Seed the week's league lines Wednesday 12:00 ET (16:00 UTC). Edit the CSV
+    # afterwards if the league sheet differs from the market snapshot.
+    - cron: "0 16 * * 3"
+    # Poll every 2 hours Wed-Mon, plus every 30 min Sunday morning ET before kickoffs.
+    - cron: "0 */2 * * 0,1,3,4,5,6"
+    - cron: "*/30 13-17 * * 0"
+  workflow_dispatch:
+    inputs:
+      command:
+        description: "init-week or update"
+        default: "update"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cover5
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    env:
+      ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+      NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+      ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Decide command
+        id: cmd
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "cmd=${{ github.event.inputs.command }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "0 16 * * 3" ]; then
+            echo "cmd=init-week" >> "$GITHUB_OUTPUT"
+          else
+            echo "cmd=update" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Run tracker
+        run: |
+          set -e
+          if [ "${{ steps.cmd.outputs.cmd }}" = "init-week" ]; then
+            python -m cover5 init-week || echo "week file already exists"
+          else
+            python -m cover5 update || echo "update skipped (no league file yet?)"
+          fi
+      - name: Commit state
+        run: |
+          git config user.name "cover5-bot"
+          git config user.email "cover5-bot@users.noreply.github.com"
+          git add data/
+          git diff --cached --quiet || git commit -m "cover5: ${{ steps.cmd.outputs.cmd }} $(date -u +%Y-%m-%dT%H:%MZ)"
+          git pull --rebase origin "${{ github.ref_name }}"
+          git push

@@ -1,0 +1,22 @@
+{"events": [
+  {"id": "e1", "competitions": [{"date": "2026-10-04T17:00Z",
+    "competitors": [
+      {"homeAway": "home", "team": {"abbreviation": "KC"}},
+      {"homeAway": "away", "team": {"abbreviation": "DEN"}}],
+    "odds": [{"provider": {"name": "ESPN BET"}, "details": "KC -6.5", "overUnder": 45.5}]}]},
+  {"id": "e2", "competitions": [{"date": "2026-10-04T20:25Z",
+    "competitors": [
+      {"homeAway": "home", "team": {"abbreviation": "LAR"}},
+      {"homeAway": "away", "team": {"abbreviation": "SF"}}],
+    "odds": [{"provider": {"name": "ESPN BET"}, "details": "SF -2.5", "overUnder": 48.5}]}]},
+  {"id": "e3", "competitions": [{"date": "2026-10-05T00:20Z",
+    "competitors": [
+      {"homeAway": "home", "team": {"abbreviation": "WSH"}},
+      {"homeAway": "away", "team": {"abbreviation": "DAL"}}],
+    "odds": [{"provider": {"name": "ESPN BET"}, "details": "EVEN", "overUnder": 50.5}]}]},
+  {"id": "e4", "competitions": [{"date": "2026-10-05T00:20Z",
+    "competitors": [
+      {"homeAway": "home", "team": {"abbreviation": "NYG"}},
+      {"homeAway": "away", "team": {"abbreviation": "PHI"}}],
+    "odds": []}]}
+]}
