@@ -50,3 +50,12 @@ def fmt_spread(away: str, home: str, home_spread: float) -> str:
     if home_spread < 0:
         return f"{home} {home_spread:g}"
     return f"{away} {-home_spread:g}"
+
+
+def fmt_pick(team: str, opponent: str, home_spread: float, team_is_home: bool) -> str:
+    """Render a pick the way the league app does: 'IND -3.5 @ WAS' or 'CHI -3 vs NYJ'."""
+    if home_spread is None or home_spread != home_spread:
+        return f"{team} (n/a) {'vs' if team_is_home else '@'} {opponent}"
+    team_spread = home_spread if team_is_home else -home_spread
+    num = "PK" if abs(team_spread) < 1e-9 else f"{team_spread:+g}"
+    return f"{team} {num} {'vs' if team_is_home else '@'} {opponent}"

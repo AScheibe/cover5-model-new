@@ -3,7 +3,9 @@
   python -m cover5 init-week            seed this week's league lines from the market
   python -m cover5 update               fetch market, recompute picks, alert on changes
   python -m cover5 status               show the board without fetching
+  python -m cover5 set-line IND -3.5    enter a league line the way the app shows it
   python -m cover5 confirm KC           record that you actually have KC picked
+  python -m cover5 score-week           score the week's picks from final results
   python -m cover5 backtest             historical sanity checks on the scoring rule
 """
 from __future__ import annotations
@@ -20,7 +22,8 @@ from cover5.picks import build_board, recommend, diff_picks
 from cover5.providers import fetch_market
 from cover5.schedule import load_games, current_week
 from cover5 import state as st
-from cover5.scoring import HOME, AWAY
+from cover5.scoring import HOME, AWAY, fmt_pick
+from cover5.teams import normalize
 
 
 def _resolve_week(args, games) -> tuple[int, int]:
@@ -91,12 +94,11 @@ def cmd_confirm(args) -> int:
     games = load_games()
     season, week = _resolve_week(args, games)
     league = load_week_file(season, week)
-    team = args.team.upper()
-    row = league[(league.home == team) | (league.away == team)]
-    if row.empty:
-        print(f"{team} is not on this week's slate")
+    r = _find_game(league, args.team)
+    if r is None:
+        print(f"{args.team.upper()} is not on this week's slate")
         return 1
-    r = row.iloc[0]
+    team = normalize(args.team)
     side = HOME if r.home == team else AWAY
     s = st.load_state(season, week)
     if args.remove:
@@ -107,6 +109,63 @@ def cmd_confirm(args) -> int:
         s.setdefault("confirmed", {})[r.game_id] = {"side": side, "team": team}
         print(f"Recorded that you have {team} picked ({side})")
     st.save_state(season, week, s)
+    return 0
+
+
+def _find_game(league: pd.DataFrame, team: str):
+    try:
+        team = normalize(team)
+    except ValueError:
+        return None
+    row = league[(league.home == team) | (league.away == team)]
+    return None if row.empty else row.iloc[0]
+
+
+def cmd_set_line(args) -> int:
+    """Enter a line from the named team's perspective, e.g. `set-line IND -3.5`
+    means IND is favored by 3.5 whether IND is home or away."""
+    games = load_games()
+    season, week = _resolve_week(args, games)
+    league = load_week_file(season, week)
+    r = _find_game(league, args.team)
+    if r is None:
+        print(f"{args.team.upper()} is not on this week's slate")
+        return 1
+    team = normalize(args.team)
+    spread = 0.0 if args.spread.upper() in ("PK", "EVEN") else float(args.spread)
+    home_spread = spread if r.home == team else -spread
+    league.loc[league.game_id == r.game_id, "home_spread"] = home_spread
+    out = league.copy()
+    out["kickoff_utc"] = out["kickoff_utc"].map(lambda d: d.isoformat())
+    out.to_csv(league_path(season, week), index=False)
+    opp = r.away if r.home == team else r.home
+    print(f"Set {fmt_pick(team, opp, home_spread, r.home == team)}  (home_spread {home_spread:+g})")
+    return 0
+
+
+def cmd_score_week(args) -> int:
+    """Score the recommended/confirmed picks with final results, app style."""
+    from cover5.scoring import pick_score
+    games = load_games(force=True)
+    season, week = _resolve_week(args, games)
+    league = load_week_file(season, week).set_index("game_id")
+    results = games[(games.season == season) & (games.week == week)].set_index("game_id")
+    picks = st.picks_from_state(st.load_state(season, week))
+    total, pending = 0.0, 0
+    for p in picks:
+        lg = league.loc[p.game_id]
+        is_home = p.side == HOME
+        opp = lg.away if is_home else lg.home
+        label = fmt_pick(p.team, opp, lg.home_spread, is_home)
+        res = results.loc[p.game_id, "result"] if p.game_id in results.index else float("nan")
+        if pd.isna(res):
+            print(f"  {label:22s}  pending")
+            pending += 1
+            continue
+        sc = pick_score(float(res), float(lg.home_spread), p.side)
+        total += sc
+        print(f"  {label:22s}  {sc:+g}")
+    print(f"Week {week} total: {total:+g}" + (f"  ({pending} game(s) pending)" if pending else ""))
     return 0
 
 
@@ -147,6 +206,14 @@ def main(argv=None) -> int:
     p.add_argument("team")
     p.add_argument("--remove", action="store_true")
     p.set_defaults(fn=cmd_confirm)
+
+    p = sub.add_parser("set-line", help="enter a league line from a team's perspective, e.g. IND -3.5")
+    p.add_argument("team")
+    p.add_argument("spread", help="number from that team's view (-3.5 favored, 2.5 underdog, PK)")
+    p.set_defaults(fn=cmd_set_line)
+
+    p = sub.add_parser("score-week", help="score this week's picks from final results")
+    p.set_defaults(fn=cmd_score_week)
 
     p = sub.add_parser("backtest", help="historical checks using nflverse closing lines")
     p.add_argument("--start", type=int, default=2010)

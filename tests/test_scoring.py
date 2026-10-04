@@ -29,3 +29,25 @@ def test_fmt_spread():
     assert fmt_spread("DEN", "KC", -3) == "KC -3"
     assert fmt_spread("DEN", "KC", 3.5) == "DEN -3.5"
     assert fmt_spread("DEN", "KC", 0) == "PK"
+
+
+def test_matches_league_app_week4_2026():
+    # Real week 4 2026 picks and the scores the league app displayed for them.
+    # (team, side, home_spread on league sheet, final home margin, app score)
+    cases = [
+        ("IND", AWAY, 3.5, -17, 13.5),   # IND -3.5 @ WAS, IND won 30-13
+        ("CHI", HOME, -3.0, 11, 8.0),    # CHI -3 vs NYJ, CHI won 23-12
+        ("LAR", AWAY, 2.5, -4, 1.5),     # LAR -2.5 @ PHI, LAR won 24-20
+        ("TEN", AWAY, -11.5, 6, 5.5),    # TEN +11.5 @ BAL, TEN lost 18-24
+        ("JAX", AWAY, -2.5, -5, 7.5),    # JAX +2.5 @ CIN, JAX won 22-17
+    ]
+    for team, side, hs, margin, expected in cases:
+        assert pick_score(margin, hs, side) == expected, team
+    assert sum(c[-1] for c in cases) == 36
+
+
+def test_fmt_pick_matches_app_style():
+    from cover5.scoring import fmt_pick
+    assert fmt_pick("IND", "WAS", 3.5, team_is_home=False) == "IND -3.5 @ WAS"
+    assert fmt_pick("CHI", "NYJ", -3.0, team_is_home=True) == "CHI -3 vs NYJ"
+    assert fmt_pick("TEN", "BAL", -11.5, team_is_home=False) == "TEN +11.5 @ BAL"

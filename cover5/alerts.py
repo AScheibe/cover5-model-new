@@ -9,17 +9,19 @@ import requests
 
 from cover5 import config
 from cover5.picks import Pick
-from cover5.scoring import HOME
+from cover5.scoring import HOME, fmt_pick
 
 ET = ZoneInfo("America/New_York")
 
 
 def _pick_line(p: Pick, board: pd.DataFrame) -> str:
     r = board[board.game_id == p.game_id].iloc[0]
-    opp = r.away if p.side == HOME else r.home
+    is_home = p.side == HOME
+    opp = r.away if is_home else r.home
     lock = " [LOCKED]" if p.locked else ""
-    return (f"{p.team} vs {opp}: league {r.league_str}, market {r.market_str}, "
-            f"edge {p.edge:+.1f}{lock}")
+    league = fmt_pick(p.team, opp, r.league_home_spread, is_home)
+    market = fmt_pick(p.team, opp, r.market_home_spread, is_home).split()[1]
+    return f"{league} (market {market}, edge {p.edge:+.1f}){lock}"
 
 
 def format_alert(season: int, week: int, picks: list[Pick], diff: dict, board: pd.DataFrame,
@@ -47,7 +49,11 @@ def format_alert(season: int, week: int, picks: list[Pick], diff: dict, board: p
         lines.append("")
         lines.append("NEXT UP (not picked):")
         for r in bench.itertuples():
-            lines.append(f"  {r.best_team}: league {r.league_str}, market {r.market_str}, edge {r.edge:+.1f}")
+            is_home = r.best_side == HOME
+            opp = r.away if is_home else r.home
+            league = fmt_pick(r.best_team, opp, r.league_home_spread, is_home)
+            market = fmt_pick(r.best_team, opp, r.market_home_spread, is_home).split()[1]
+            lines.append(f"  {league} (market {market}, edge {r.edge:+.1f})")
     total = sum(p.edge for p in picks)
     lines.append("")
     lines.append(f"Expected week score from line movement: {total:+.1f}")

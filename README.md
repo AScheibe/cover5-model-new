@@ -46,9 +46,17 @@ python -m cover5 init-week
 # Any time after: fetch the market, recompute, alert on changes.
 python -m cover5 update
 
+# Or type the league sheet in the way the app shows it, from the named team's
+# point of view (LAR, WSH and other app abbreviations are accepted):
+python -m cover5 set-line IND -3.5
+python -m cover5 set-line TEN 11.5
+
 # If you deviated from the recommendation on the league site, say so, so the
 # tracker reasons from what you actually have in.
 python -m cover5 confirm KC
+
+# After the games: score the week the way the app does, to check both agree.
+python -m cover5 score-week
 
 python -m cover5 status
 python -m cover5 backtest
