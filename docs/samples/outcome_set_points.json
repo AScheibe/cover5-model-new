@@ -1,0 +1,353 @@
+{
+  "week": {
+    "season": 2026,
+    "week": 4,
+    "now": "2026-10-04T21:05:06+00:00",
+    "has_league_file": true,
+    "market": {
+      "kind": "snapshot",
+      "fetched_at": "2026-10-04T16:05:06.689733+00:00"
+    },
+    "last_run": "2026-10-04T21:05:06+00:00",
+    "n_picks": 5,
+    "games": [
+      {
+        "game_id": "2026_04_PIT_CLE",
+        "away": "PIT",
+        "home": "CLE",
+        "kickoff_utc": "2026-10-04T18:05:00+00:00",
+        "locked": true,
+        "league_home_spread": -3.0,
+        "sheet_home_spread": -3.0,
+        "line_overridden": false,
+        "market_home_spread": -6.0,
+        "books": 3,
+        "best_side": "HOME",
+        "best_team": "CLE",
+        "edge": 3.0,
+        "result": null,
+        "picked_side": "HOME",
+        "picked_team": "CLE",
+        "lock": {
+          "side": "HOME",
+          "team": "CLE"
+        }
+      },
+      {
+        "game_id": "2026_04_IND_WAS",
+        "away": "IND",
+        "home": "WAS",
+        "kickoff_utc": "2026-10-05T21:06:00+00:00",
+        "locked": false,
+        "league_home_spread": -3.0,
+        "sheet_home_spread": -3.0,
+        "line_overridden": false,
+        "market_home_spread": -5.0,
+        "books": 3,
+        "best_side": "HOME",
+        "best_team": "WAS",
+        "edge": 2.0,
+        "result": null,
+        "picked_side": "HOME",
+        "picked_team": "WAS",
+        "lock": null
+      },
+      {
+        "game_id": "2026_04_TEN_BAL",
+        "away": "TEN",
+        "home": "BAL",
+        "kickoff_utc": "2026-10-05T21:07:00+00:00",
+        "locked": false,
+        "league_home_spread": -3.0,
+        "sheet_home_spread": -3.0,
+        "line_overridden": false,
+        "market_home_spread": -4.5,
+        "books": 3,
+        "best_side": "HOME",
+        "best_team": "BAL",
+        "edge": 1.5,
+        "result": null,
+        "picked_side": "HOME",
+        "picked_team": "BAL",
+        "lock": null
+      },
+      {
+        "game_id": "2026_04_NE_BUF",
+        "away": "NE",
+        "home": "BUF",
+        "kickoff_utc": "2026-10-05T21:08:00+00:00",
+        "locked": false,
+        "league_home_spread": -3.0,
+        "sheet_home_spread": -3.0,
+        "line_overridden": false,
+        "market_home_spread": -4.0,
+        "books": 3,
+        "best_side": "HOME",
+        "best_team": "BUF",
+        "edge": 1.0,
+        "result": null,
+        "picked_side": "HOME",
+        "picked_team": "BUF",
+        "lock": null
+      },
+      {
+        "game_id": "2026_04_NYJ_CHI",
+        "away": "NYJ",
+        "home": "CHI",
+        "kickoff_utc": "2026-10-05T21:09:00+00:00",
+        "locked": false,
+        "league_home_spread": -3.0,
+        "sheet_home_spread": -3.0,
+        "line_overridden": false,
+        "market_home_spread": -3.5,
+        "books": 3,
+        "best_side": "HOME",
+        "best_team": "CHI",
+        "edge": 0.5,
+        "result": null,
+        "picked_side": "HOME",
+        "picked_team": "CHI",
+        "lock": null
+      },
+      {
+        "game_id": "2026_04_JAX_CIN",
+        "away": "JAX",
+        "home": "CIN",
+        "kickoff_utc": "2026-10-05T21:10:00+00:00",
+        "locked": false,
+        "league_home_spread": -3.0,
+        "sheet_home_spread": -3.0,
+        "line_overridden": false,
+        "market_home_spread": -3.0,
+        "books": 3,
+        "best_side": "HOME",
+        "best_team": "CIN",
+        "edge": 0.0,
+        "result": null,
+        "picked_side": null,
+        "picked_team": null,
+        "lock": null
+      },
+      {
+        "game_id": "2026_04_DAL_HOU",
+        "away": "DAL",
+        "home": "HOU",
+        "kickoff_utc": "2026-10-05T21:11:00+00:00",
+        "locked": false,
+        "league_home_spread": -3.0,
+        "sheet_home_spread": -3.0,
+        "line_overridden": false,
+        "market_home_spread": -3.0,
+        "books": 3,
+        "best_side": "HOME",
+        "best_team": "HOU",
+        "edge": 0.0,
+        "result": null,
+        "picked_side": null,
+        "picked_team": null,
+        "lock": null
+      },
+      {
+        "game_id": "2026_04_ARI_NYG",
+        "away": "ARI",
+        "home": "NYG",
+        "kickoff_utc": "2026-10-05T21:12:00+00:00",
+        "locked": false,
+        "league_home_spread": -3.0,
+        "sheet_home_spread": -3.0,
+        "line_overridden": false,
+        "market_home_spread": -3.0,
+        "books": 3,
+        "best_side": "HOME",
+        "best_team": "NYG",
+        "edge": 0.0,
+        "result": null,
+        "picked_side": null,
+        "picked_team": null,
+        "lock": null
+      }
+    ],
+    "picks": [
+      {
+        "game_id": "2026_04_PIT_CLE",
+        "team": "CLE",
+        "opponent": "PIT",
+        "side": "HOME",
+        "is_home": true,
+        "league_spread": -3.0,
+        "market_spread": -6.0,
+        "label": "CLE -3 vs PIT",
+        "kickoff_utc": "2026-10-04T18:05:00+00:00",
+        "edge": 3.0,
+        "locked": true,
+        "manual": true,
+        "status": "live",
+        "points": 8.0,
+        "source": "points override",
+        "line_overridden": false
+      },
+      {
+        "game_id": "2026_04_IND_WAS",
+        "team": "WAS",
+        "opponent": "IND",
+        "side": "HOME",
+        "is_home": true,
+        "league_spread": -3.0,
+        "market_spread": -5.0,
+        "label": "WAS -3 vs IND",
+        "kickoff_utc": "2026-10-05T21:06:00+00:00",
+        "edge": 2.0,
+        "locked": false,
+        "manual": false,
+        "status": "open",
+        "points": 2.0,
+        "source": "edge",
+        "line_overridden": false
+      },
+      {
+        "game_id": "2026_04_TEN_BAL",
+        "team": "BAL",
+        "opponent": "TEN",
+        "side": "HOME",
+        "is_home": true,
+        "league_spread": -3.0,
+        "market_spread": -4.5,
+        "label": "BAL -3 vs TEN",
+        "kickoff_utc": "2026-10-05T21:07:00+00:00",
+        "edge": 1.5,
+        "locked": false,
+        "manual": false,
+        "status": "open",
+        "points": 1.5,
+        "source": "edge",
+        "line_overridden": false
+      },
+      {
+        "game_id": "2026_04_NE_BUF",
+        "team": "BUF",
+        "opponent": "NE",
+        "side": "HOME",
+        "is_home": true,
+        "league_spread": -3.0,
+        "market_spread": -4.0,
+        "label": "BUF -3 vs NE",
+        "kickoff_utc": "2026-10-05T21:08:00+00:00",
+        "edge": 1.0,
+        "locked": false,
+        "manual": false,
+        "status": "open",
+        "points": 1.0,
+        "source": "edge",
+        "line_overridden": false
+      },
+      {
+        "game_id": "2026_04_NYJ_CHI",
+        "team": "CHI",
+        "opponent": "NYJ",
+        "side": "HOME",
+        "is_home": true,
+        "league_spread": -3.0,
+        "market_spread": -3.5,
+        "label": "CHI -3 vs NYJ",
+        "kickoff_utc": "2026-10-05T21:09:00+00:00",
+        "edge": 0.5,
+        "locked": false,
+        "manual": false,
+        "status": "open",
+        "points": 0.5,
+        "source": "edge",
+        "line_overridden": false
+      }
+    ],
+    "summary": {
+      "final": 0,
+      "live": 8.0,
+      "expected": 5.0,
+      "n_final": 0,
+      "n_live": 1,
+      "n_open": 4,
+      "projected": 13.0,
+      "line": "Week total: +8.0 live (1), +5.0 expected from line movement (4 open). Projected +13.0"
+    },
+    "diff": {
+      "changed": false,
+      "added": [],
+      "dropped": [],
+      "flipped": []
+    },
+    "todo": {
+      "changed": true,
+      "added": [
+        "BUF",
+        "CHI"
+      ],
+      "dropped": [
+        "DAL",
+        "JAX"
+      ],
+      "flipped": [],
+      "since": "2026-10-04T20:30:00+00:00",
+      "confirmed": [
+        "CLE",
+        "WAS",
+        "BAL",
+        "DAL",
+        "JAX"
+      ]
+    },
+    "warnings": [],
+    "overrides": {
+      "lines": [],
+      "locks": [
+        {
+          "game_id": "2026_04_PIT_CLE",
+          "away": "PIT",
+          "home": "CLE",
+          "value": {
+            "side": "HOME",
+            "team": "CLE"
+          }
+        }
+      ],
+      "results": [],
+      "points": [
+        {
+          "game_id": "2026_04_PIT_CLE",
+          "away": "PIT",
+          "home": "CLE",
+          "value": {
+            "final": false,
+            "team": "CLE",
+            "value": 8.0
+          }
+        }
+      ]
+    },
+    "last_change": {
+      "at": "2026-10-04T21:05:06+00:00",
+      "reason": "after you set your picks",
+      "sent": false,
+      "changed": true,
+      "added": [
+        "BUF",
+        "CHI"
+      ],
+      "dropped": [
+        "DAL",
+        "JAX"
+      ],
+      "flipped": [],
+      "body": "Sun Oct 04 05:05 PM ET  (after you set your picks)\n\nDO THIS:\n  - drop  DAL\n  - drop  JAX\n  + add   BUF -3 vs NE (market -4, edge +1.0)\n  + add   CHI -3 vs NYJ (market -3.5, edge +0.5)\n\nCURRENT PICKS:\n  1. CLE -3 vs PIT (market -6, edge +3.0) [LOCKED]\n  2. WAS -3 vs IND (market -5, edge +2.0)\n  3. BAL -3 vs TEN (market -4.5, edge +1.5)\n  4. BUF -3 vs NE (market -4, edge +1.0)\n  5. CHI -3 vs NYJ (market -3.5, edge +0.5)\n\nNEXT UP (not picked):\n  NYG -3 vs ARI (market -3, edge +0.0)\n  HOU -3 vs DAL (market -3, edge +0.0)\n  CIN -3 vs JAX (market -3, edge +0.0)\n\nWeek total: +8.0 expected from line movement (5 open). Projected +8.0"
+    }
+  },
+  "alert": {
+    "title": "Cover 5 wk4: no change",
+    "body": "Sun Oct 04 05:05 PM ET  (after your points override)\n\nCURRENT PICKS:\n  1. CLE -3 vs PIT (market -6, edge +3.0) [LIVE +8 (override)]\n  2. WAS -3 vs IND (market -5, edge +2.0)\n  3. BAL -3 vs TEN (market -4.5, edge +1.5)\n  4. BUF -3 vs NE (market -4, edge +1.0)\n  5. CHI -3 vs NYJ (market -3.5, edge +0.5)\n\nNEXT UP (not picked):\n  NYG -3 vs ARI (market -3, edge +0.0)\n  HOU -3 vs DAL (market -3, edge +0.0)\n  CIN -3 vs JAX (market -3, edge +0.0)\n\nWeek total: +8.0 live (1), +5.0 expected from line movement (4 open). Projected +13.0",
+    "changed": false,
+    "sent": false,
+    "failures": []
+  },
+  "messages": [
+    "CLE scored +8 (live); locked CLE as your pick in that game."
+  ]
+}

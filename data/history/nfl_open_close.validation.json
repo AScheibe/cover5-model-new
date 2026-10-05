@@ -1,0 +1,423 @@
+{
+  "source": "https://raw.githubusercontent.com/greerreNFL/nfelomarket_data/main/Data/lines.csv",
+  "source_rows": 7340,
+  "copy_open_seasons_excluded": [
+    1999,
+    2000,
+    2001,
+    2002,
+    2003,
+    2004,
+    2005,
+    2006
+  ],
+  "min_season": 2007,
+  "join": {
+    "source_rows_considered": 5228,
+    "matched_direct": 5228,
+    "matched_swapped_home_away": 0,
+    "failed": 0,
+    "failed_ids": [],
+    "duplicate_game_ids": 0,
+    "matched_non_reg_dropped": 221,
+    "matched_reg": 5007,
+    "join_key": "(season, week, away, home) on canonical codes against all nflverse game types; fallback swapped home/away"
+  },
+  "dropped_missing_open": 13,
+  "dropped_missing_open_ids": [
+    "2024_14_ATL_MIN",
+    "2024_14_BUF_LA",
+    "2024_14_CAR_PHI",
+    "2024_14_CHI_SF",
+    "2024_14_CIN_DAL",
+    "2024_14_CLE_PIT",
+    "2024_14_GB_DET",
+    "2024_14_JAX_TEN",
+    "2024_14_LAC_KC",
+    "2024_14_NO_NYG",
+    "2024_14_NYJ_MIA",
+    "2024_14_LV_TB",
+    "2024_14_SEA_ARI"
+  ],
+  "dropped_missing_close": 0,
+  "dropped_unplayed": 6,
+  "max_close_dev": 3.0,
+  "dropped_bad_close": 11,
+  "dropped_bad_close_rows": [
+    {
+      "game_id": "2009_02_BAL_SD",
+      "open_home_spread": -3.5,
+      "close_home_spread": 0.0,
+      "spread_line": 3.0
+    },
+    {
+      "game_id": "2019_01_DEN_OAK",
+      "open_home_spread": -3.0,
+      "close_home_spread": -1.5,
+      "spread_line": -3.0
+    },
+    {
+      "game_id": "2020_01_ARI_SF",
+      "open_home_spread": -7.5,
+      "close_home_spread": 7.5,
+      "spread_line": 7.0
+    },
+    {
+      "game_id": "2020_04_NE_KC",
+      "open_home_spread": -11.0,
+      "close_home_spread": -11.5,
+      "spread_line": 7.0
+    },
+    {
+      "game_id": "2021_10_DET_PIT",
+      "open_home_spread": -9.0,
+      "close_home_spread": -5.5,
+      "spread_line": 9.0
+    },
+    {
+      "game_id": "2021_17_MIN_GB",
+      "open_home_spread": -7.0,
+      "close_home_spread": -7.0,
+      "spread_line": 13.0
+    },
+    {
+      "game_id": "2021_18_KC_DEN",
+      "open_home_spread": 10.0,
+      "close_home_spread": 4.0,
+      "spread_line": -11.5
+    },
+    {
+      "game_id": "2022_12_CHI_NYJ",
+      "open_home_spread": -3.5,
+      "close_home_spread": -3.5,
+      "spread_line": 8.5
+    },
+    {
+      "game_id": "2022_12_LA_KC",
+      "open_home_spread": -11.0,
+      "close_home_spread": -11.0,
+      "spread_line": 16.5
+    },
+    {
+      "game_id": "2022_12_NYG_DAL",
+      "open_home_spread": -7.0,
+      "close_home_spread": -7.0,
+      "spread_line": 10.5
+    },
+    {
+      "game_id": "2026_03_LA_DEN",
+      "open_home_spread": 2.5,
+      "close_home_spread": 1.5,
+      "spread_line": 1.5
+    }
+  ],
+  "played_reg_games_missing_from_output": 24,
+  "open_sign_flip_suspects_kept": [
+    "2010_05_CHI_CAR",
+    "2011_06_PHI_WAS",
+    "2012_11_BAL_PIT",
+    "2013_17_SF_ARI",
+    "2014_08_BAL_CIN",
+    "2014_13_NE_GB",
+    "2017_01_IND_LA",
+    "2017_07_KC_OAK",
+    "2017_09_ATL_CAR",
+    "2017_17_SF_LA",
+    "2018_07_DET_MIA",
+    "2018_13_LAC_PIT",
+    "2018_16_ATL_CAR",
+    "2020_16_CIN_HOU",
+    "2021_01_SEA_IND",
+    "2021_16_MIA_NO",
+    "2023_14_IND_CIN",
+    "2023_15_LAC_LV",
+    "2023_15_HOU_TEN",
+    "2023_18_PIT_BAL",
+    "2024_16_HOU_KC"
+  ],
+  "overall_before_close_filter": {
+    "rows": 4988,
+    "close_agree_exact": 0.6957,
+    "close_agree_within_0.5": 0.93,
+    "close_agree_within_1": 0.9771,
+    "close_mae_vs_nflverse": 0.2118,
+    "close_sign_disagrees_with_nflverse": 28,
+    "mean_abs_move": 1.1886,
+    "pct_moved_any": 0.7813,
+    "pct_moved_1plus": 0.5231
+  },
+  "overall": {
+    "rows": 4977,
+    "close_agree_exact": 0.6972,
+    "close_agree_within_0.5": 0.9321,
+    "close_agree_within_1": 0.9793,
+    "close_mae_vs_nflverse": 0.2001,
+    "close_sign_disagrees_with_nflverse": 25,
+    "mean_abs_move": 1.185,
+    "pct_moved_any": 0.7816,
+    "pct_moved_1plus": 0.523
+  },
+  "coverage_vs_played_nflverse_reg": {
+    "2007": "256/256",
+    "2008": "256/256",
+    "2009": "255/256",
+    "2010": "256/256",
+    "2011": "256/256",
+    "2012": "256/256",
+    "2013": "256/256",
+    "2014": "256/256",
+    "2015": "256/256",
+    "2016": "256/256",
+    "2017": "256/256",
+    "2018": "256/256",
+    "2019": "255/256",
+    "2020": "254/256",
+    "2021": "269/272",
+    "2022": "268/271",
+    "2023": "272/272",
+    "2024": "259/272",
+    "2025": "272/272",
+    "2026": "57/58"
+  },
+  "per_season": {
+    "2007": {
+      "rows": 256,
+      "close_agree_exact": 1.0,
+      "close_agree_within_0.5": 1.0,
+      "close_agree_within_1": 1.0,
+      "close_mae_vs_nflverse": 0.0,
+      "close_sign_disagrees_with_nflverse": 0,
+      "mean_abs_move": 1.0547,
+      "pct_moved_any": 0.7461,
+      "pct_moved_1plus": 0.5273
+    },
+    "2008": {
+      "rows": 256,
+      "close_agree_exact": 1.0,
+      "close_agree_within_0.5": 1.0,
+      "close_agree_within_1": 1.0,
+      "close_mae_vs_nflverse": 0.0,
+      "close_sign_disagrees_with_nflverse": 0,
+      "mean_abs_move": 1.0781,
+      "pct_moved_any": 0.7773,
+      "pct_moved_1plus": 0.5703
+    },
+    "2009": {
+      "rows": 255,
+      "close_agree_exact": 0.5294,
+      "close_agree_within_0.5": 0.8667,
+      "close_agree_within_1": 0.949,
+      "close_mae_vs_nflverse": 0.3353,
+      "close_sign_disagrees_with_nflverse": 0,
+      "mean_abs_move": 1.1373,
+      "pct_moved_any": 0.8353,
+      "pct_moved_1plus": 0.549
+    },
+    "2010": {
+      "rows": 256,
+      "close_agree_exact": 0.625,
+      "close_agree_within_0.5": 0.8984,
+      "close_agree_within_1": 0.9844,
+      "close_mae_vs_nflverse": 0.25,
+      "close_sign_disagrees_with_nflverse": 2,
+      "mean_abs_move": 1.2188,
+      "pct_moved_any": 0.8516,
+      "pct_moved_1plus": 0.6016
+    },
+    "2011": {
+      "rows": 256,
+      "close_agree_exact": 0.6562,
+      "close_agree_within_0.5": 0.9141,
+      "close_agree_within_1": 0.9609,
+      "close_mae_vs_nflverse": 0.2383,
+      "close_sign_disagrees_with_nflverse": 1,
+      "mean_abs_move": 1.2109,
+      "pct_moved_any": 0.7734,
+      "pct_moved_1plus": 0.5156
+    },
+    "2012": {
+      "rows": 256,
+      "close_agree_exact": 0.6875,
+      "close_agree_within_0.5": 0.8906,
+      "close_agree_within_1": 0.9297,
+      "close_mae_vs_nflverse": 0.2539,
+      "close_sign_disagrees_with_nflverse": 1,
+      "mean_abs_move": 1.2402,
+      "pct_moved_any": 0.8438,
+      "pct_moved_1plus": 0.5898
+    },
+    "2013": {
+      "rows": 256,
+      "close_agree_exact": 0.5977,
+      "close_agree_within_0.5": 0.8594,
+      "close_agree_within_1": 0.9453,
+      "close_mae_vs_nflverse": 0.3066,
+      "close_sign_disagrees_with_nflverse": 4,
+      "mean_abs_move": 1.3125,
+      "pct_moved_any": 0.8203,
+      "pct_moved_1plus": 0.5977
+    },
+    "2014": {
+      "rows": 256,
+      "close_agree_exact": 0.6016,
+      "close_agree_within_0.5": 0.9336,
+      "close_agree_within_1": 0.9844,
+      "close_mae_vs_nflverse": 0.2461,
+      "close_sign_disagrees_with_nflverse": 2,
+      "mean_abs_move": 1.2676,
+      "pct_moved_any": 0.8125,
+      "pct_moved_1plus": 0.5664
+    },
+    "2015": {
+      "rows": 256,
+      "close_agree_exact": 0.6992,
+      "close_agree_within_0.5": 0.9336,
+      "close_agree_within_1": 0.9961,
+      "close_mae_vs_nflverse": 0.1875,
+      "close_sign_disagrees_with_nflverse": 1,
+      "mean_abs_move": 1.2598,
+      "pct_moved_any": 0.8398,
+      "pct_moved_1plus": 0.5586
+    },
+    "2016": {
+      "rows": 256,
+      "close_agree_exact": 0.6914,
+      "close_agree_within_0.5": 0.9062,
+      "close_agree_within_1": 0.9766,
+      "close_mae_vs_nflverse": 0.2188,
+      "close_sign_disagrees_with_nflverse": 3,
+      "mean_abs_move": 1.1758,
+      "pct_moved_any": 0.8242,
+      "pct_moved_1plus": 0.4766
+    },
+    "2017": {
+      "rows": 256,
+      "close_agree_exact": 0.668,
+      "close_agree_within_0.5": 0.9492,
+      "close_agree_within_1": 0.9883,
+      "close_mae_vs_nflverse": 0.2051,
+      "close_sign_disagrees_with_nflverse": 3,
+      "mean_abs_move": 1.2754,
+      "pct_moved_any": 0.7812,
+      "pct_moved_1plus": 0.5078
+    },
+    "2018": {
+      "rows": 256,
+      "close_agree_exact": 0.6562,
+      "close_agree_within_0.5": 0.9453,
+      "close_agree_within_1": 0.9883,
+      "close_mae_vs_nflverse": 0.207,
+      "close_sign_disagrees_with_nflverse": 1,
+      "mean_abs_move": 1.2676,
+      "pct_moved_any": 0.8438,
+      "pct_moved_1plus": 0.5352
+    },
+    "2019": {
+      "rows": 255,
+      "close_agree_exact": 0.6392,
+      "close_agree_within_0.5": 0.9725,
+      "close_agree_within_1": 0.9961,
+      "close_mae_vs_nflverse": 0.1961,
+      "close_sign_disagrees_with_nflverse": 0,
+      "mean_abs_move": 1.2176,
+      "pct_moved_any": 0.7882,
+      "pct_moved_1plus": 0.5255
+    },
+    "2020": {
+      "rows": 254,
+      "close_agree_exact": 0.685,
+      "close_agree_within_0.5": 0.9646,
+      "close_agree_within_1": 0.9921,
+      "close_mae_vs_nflverse": 0.1831,
+      "close_sign_disagrees_with_nflverse": 1,
+      "mean_abs_move": 1.5472,
+      "pct_moved_any": 0.8622,
+      "pct_moved_1plus": 0.6299
+    },
+    "2021": {
+      "rows": 269,
+      "close_agree_exact": 0.6171,
+      "close_agree_within_0.5": 0.8996,
+      "close_agree_within_1": 0.9591,
+      "close_mae_vs_nflverse": 0.2714,
+      "close_sign_disagrees_with_nflverse": 1,
+      "mean_abs_move": 1.3476,
+      "pct_moved_any": 0.7918,
+      "pct_moved_1plus": 0.5502
+    },
+    "2022": {
+      "rows": 268,
+      "close_agree_exact": 0.6343,
+      "close_agree_within_0.5": 0.903,
+      "close_agree_within_1": 0.9739,
+      "close_mae_vs_nflverse": 0.2481,
+      "close_sign_disagrees_with_nflverse": 1,
+      "mean_abs_move": 0.5989,
+      "pct_moved_any": 0.4366,
+      "pct_moved_1plus": 0.2127
+    },
+    "2023": {
+      "rows": 272,
+      "close_agree_exact": 0.6728,
+      "close_agree_within_0.5": 0.9669,
+      "close_agree_within_1": 0.9926,
+      "close_mae_vs_nflverse": 0.1857,
+      "close_sign_disagrees_with_nflverse": 1,
+      "mean_abs_move": 1.6562,
+      "pct_moved_any": 0.8493,
+      "pct_moved_1plus": 0.6691
+    },
+    "2024": {
+      "rows": 259,
+      "close_agree_exact": 0.7645,
+      "close_agree_within_0.5": 0.9614,
+      "close_agree_within_1": 0.9961,
+      "close_mae_vs_nflverse": 0.139,
+      "close_sign_disagrees_with_nflverse": 0,
+      "mean_abs_move": 0.89,
+      "pct_moved_any": 0.749,
+      "pct_moved_1plus": 0.3938
+    },
+    "2025": {
+      "rows": 272,
+      "close_agree_exact": 0.7978,
+      "close_agree_within_0.5": 0.9375,
+      "close_agree_within_1": 0.989,
+      "close_mae_vs_nflverse": 0.1489,
+      "close_sign_disagrees_with_nflverse": 3,
+      "mean_abs_move": 0.9136,
+      "pct_moved_any": 0.6801,
+      "pct_moved_1plus": 0.4191
+    },
+    "2026": {
+      "rows": 57,
+      "close_agree_exact": 0.807,
+      "close_agree_within_0.5": 0.9649,
+      "close_agree_within_1": 1.0,
+      "close_mae_vs_nflverse": 0.114,
+      "close_sign_disagrees_with_nflverse": 0,
+      "mean_abs_move": 0.5439,
+      "pct_moved_any": 0.614,
+      "pct_moved_1plus": 0.3158
+    }
+  },
+  "crosscheck_mrcaseb_2006_2021": {
+    "games_compared": 3469,
+    "open_vs_pin_open": {
+      "n": 2387,
+      "exact": 0.9573,
+      "within_0.5": 0.9749,
+      "mae": 0.0758
+    },
+    "open_vs_med_open": {
+      "n": 2413,
+      "exact": 0.5093,
+      "within_0.5": 0.8135,
+      "mae": 0.4574
+    },
+    "pin_mean_abs_move": 1.3023,
+    "pin_pct_moved_1plus": 0.5614,
+    "med_mean_abs_move": 1.1332,
+    "med_pct_moved_1plus": 0.5068
+  }
+}

@@ -1,0 +1,84 @@
+name: cover5 line tracker
+
+on:
+  schedule:
+    # Seed the week's league lines Wednesday 12:00 ET (16:00 UTC). Edit the CSV
+    # afterwards if the league sheet differs from the market snapshot.
+    - cron: "0 16 * * 3"
+    # Poll every 2 hours Wed-Mon, plus every 30 min Sunday morning ET before kickoffs.
+    - cron: "0 */2 * * 0,1,3,4,5,6"
+    - cron: "*/30 13-17 * * 0"
+  workflow_dispatch:
+    inputs:
+      command:
+        description: >-
+          A cover5 command, e.g. "update", "init-week", "picks IND CHI LAR TEN JAX",
+          "lock TEN", "set-line IND -3.5", "set-points TEN 5.5", "set-score IND 30 13",
+          "clear IND", "overrides". Add "--week N" to fix a past week. Anything other
+          than update/init-week is recorded and then followed by a fresh update.
+        default: "update"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cover5
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    env:
+      ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+      NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+      ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Run tracker
+        id: run
+        env:
+          # Passed through the environment and split without eval, so a typed
+          # command can't inject shell.
+          DISPATCH_COMMAND: ${{ github.event.inputs.command }}
+          EVENT_NAME: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            CMD="${DISPATCH_COMMAND:-update}"
+          elif [ "$SCHEDULE" = "0 16 * * 3" ]; then
+            CMD="init-week"
+          else
+            CMD="update"
+          fi
+          read -r -a ARGS <<< "$CMD"
+          case "${ARGS[0]:-}" in
+            update|init-week|status|score-week|overrides|picks|lock|unlock|set-line|set-score|set-points|clear) ;;
+            *) echo "::error::unknown command '${ARGS[0]:-}'"; exit 1 ;;
+          esac
+          echo "label=${ARGS[0]}" >> "$GITHUB_OUTPUT"
+          case "${ARGS[0]}" in
+            init-week)
+              python -m cover5 "${ARGS[@]}" || echo "init-week failed (week file already exists? add --overwrite)" ;;
+            update)
+              python -m cover5 "${ARGS[@]}" || echo "update skipped (no league file yet?)" ;;
+            status|score-week|overrides)
+              python -m cover5 "${ARGS[@]}" ;;
+            *)
+              # Record the override, then recompute on fresh lines (one alert, not two).
+              python -m cover5 "${ARGS[@]}" --no-recompute
+              python -m cover5 update || echo "update skipped (no league file yet?)" ;;
+          esac
+      - name: Commit state
+        run: |
+          git config user.name "cover5-bot"
+          git config user.email "cover5-bot@users.noreply.github.com"
+          git add data/
+          git diff --cached --quiet || git commit -m "cover5: ${{ steps.run.outputs.label }} $(date -u +%Y-%m-%dT%H:%MZ)"
+          git pull --rebase origin "${{ github.ref_name }}"
+          git push

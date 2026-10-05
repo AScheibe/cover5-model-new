@@ -1,0 +1,18 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+data/cache/
+# raw downloads are re-fetched by scripts/build_history.py; keep only provenance
+data/history/raw/*
+!data/history/raw/*.source.json
+# local-only records and secrets
+data/cover5.db
+data/cover5.db-*
+data/settings.json
+
+# web app build output
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+frontend/test-results/
+frontend/playwright-report/

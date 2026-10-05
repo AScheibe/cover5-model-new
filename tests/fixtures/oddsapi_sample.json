@@ -1,0 +1,31 @@
+[
+  {
+    "id": "a1", "sport_key": "americanfootball_nfl", "commence_time": "2026-10-04T17:00:00Z",
+    "home_team": "Kansas City Chiefs", "away_team": "Denver Broncos",
+    "bookmakers": [
+      {"key": "draftkings", "title": "DraftKings", "markets": [{"key": "spreads", "outcomes": [
+        {"name": "Kansas City Chiefs", "price": -110, "point": -6.5},
+        {"name": "Denver Broncos", "price": -110, "point": 6.5}]}]},
+      {"key": "fanduel", "title": "FanDuel", "markets": [{"key": "spreads", "outcomes": [
+        {"name": "Kansas City Chiefs", "price": -112, "point": -6.0},
+        {"name": "Denver Broncos", "price": -108, "point": 6.0}]}]},
+      {"key": "betmgm", "title": "BetMGM", "markets": [{"key": "spreads", "outcomes": [
+        {"name": "Kansas City Chiefs", "price": -110, "point": -6.5},
+        {"name": "Denver Broncos", "price": -110, "point": 6.5}]}]}
+    ]
+  },
+  {
+    "id": "a2", "sport_key": "americanfootball_nfl", "commence_time": "2026-10-04T20:25:00Z",
+    "home_team": "Los Angeles Rams", "away_team": "San Francisco 49ers",
+    "bookmakers": [
+      {"key": "draftkings", "title": "DraftKings", "markets": [{"key": "spreads", "outcomes": [
+        {"name": "Los Angeles Rams", "price": -110, "point": 2.5},
+        {"name": "San Francisco 49ers", "price": -110, "point": -2.5}]}]}
+    ]
+  },
+  {
+    "id": "a3", "sport_key": "americanfootball_nfl", "commence_time": "2026-10-05T00:20:00Z",
+    "home_team": "Washington Commanders", "away_team": "Dallas Cowboys",
+    "bookmakers": []
+  }
+]
