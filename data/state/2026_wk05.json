@@ -33,10 +33,10 @@
       "manual": false
     },
     {
-      "game_id": "2026_05_NYG_WAS",
+      "game_id": "2026_05_SF_SEA",
       "side": "HOME",
-      "team": "WAS",
-      "edge": 1.0,
+      "team": "SEA",
+      "edge": 0.5,
       "locked": false,
       "manual": false
     }
@@ -145,7 +145,20 @@
         "WAS:+1.0"
       ],
       "projected": -12.5
+    },
+    {
+      "at": "2026-10-10T03:55:09+00:00",
+      "reason": "market update",
+      "changed": true,
+      "picks": [
+        "DAL:+1.0:L",
+        "MIN:+1.0",
+        "NYJ:+1.0",
+        "GB:+1.0",
+        "SEA:+0.5"
+      ],
+      "projected": -13.0
     }
   ],
-  "last_run": "2026-10-09T22:08:25+00:00"
+  "last_run": "2026-10-10T03:55:09+00:00"
 }
