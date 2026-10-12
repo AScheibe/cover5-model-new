@@ -262,7 +262,20 @@
         "GB:+1.0:L"
       ],
       "projected": 17.0
+    },
+    {
+      "at": "2026-10-12T00:54:48+00:00",
+      "reason": "market update",
+      "changed": false,
+      "picks": [
+        "JAX:+1.5:L",
+        "DAL:+1.0:L",
+        "MIN:+1.0:L",
+        "NYJ:+1.0:L",
+        "GB:+1.0:L"
+      ],
+      "projected": 17.0
     }
   ],
-  "last_run": "2026-10-11T21:22:58+00:00"
+  "last_run": "2026-10-12T00:54:48+00:00"
 }
