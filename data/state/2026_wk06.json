@@ -12,6 +12,14 @@
       "game_id": "2026_06_BAL_CLE",
       "side": "HOME",
       "team": "CLE",
+      "edge": 2.0,
+      "locked": false,
+      "manual": false
+    },
+    {
+      "game_id": "2026_06_BUF_LV",
+      "side": "HOME",
+      "team": "LV",
       "edge": 1.0,
       "locked": false,
       "manual": false
@@ -28,14 +36,6 @@
       "game_id": "2026_06_DAL_GB",
       "side": "HOME",
       "team": "GB",
-      "edge": 0.0,
-      "locked": false,
-      "manual": false
-    },
-    {
-      "game_id": "2026_06_BUF_LV",
-      "side": "HOME",
-      "team": "LV",
       "edge": 0.0,
       "locked": false,
       "manual": false
@@ -106,7 +106,20 @@
         "LV:+0.0"
       ],
       "projected": 3.0
+    },
+    {
+      "at": "2026-10-15T22:51:17+00:00",
+      "reason": "market update",
+      "changed": false,
+      "picks": [
+        "CAR:+2.0",
+        "CLE:+2.0",
+        "LV:+1.0",
+        "SF:+0.0",
+        "GB:+0.0"
+      ],
+      "projected": 5.0
     }
   ],
-  "last_run": "2026-10-15T19:39:06+00:00"
+  "last_run": "2026-10-15T22:51:17+00:00"
 }
