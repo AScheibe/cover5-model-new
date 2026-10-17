@@ -17,14 +17,6 @@
       "manual": false
     },
     {
-      "game_id": "2026_06_BUF_LV",
-      "side": "HOME",
-      "team": "LV",
-      "edge": 1.0,
-      "locked": false,
-      "manual": false
-    },
-    {
       "game_id": "2026_06_LAC_KC",
       "side": "AWAY",
       "team": "LAC",
@@ -36,6 +28,14 @@
       "game_id": "2026_06_WAS_SF",
       "side": "HOME",
       "team": "SF",
+      "edge": 0.0,
+      "locked": false,
+      "manual": false
+    },
+    {
+      "game_id": "2026_06_BUF_LV",
+      "side": "HOME",
+      "team": "LV",
       "edge": 0.0,
       "locked": false,
       "manual": false
@@ -210,7 +210,20 @@
         "SF:+0.0"
       ],
       "projected": 6.0
+    },
+    {
+      "at": "2026-10-17T13:25:15+00:00",
+      "reason": "market update",
+      "changed": false,
+      "picks": [
+        "CLE:+2.5",
+        "CAR:+1.5",
+        "LAC:+1.0",
+        "SF:+0.0",
+        "LV:+0.0"
+      ],
+      "projected": 5.0
     }
   ],
-  "last_run": "2026-10-17T08:12:39+00:00"
+  "last_run": "2026-10-17T13:25:15+00:00"
 }
