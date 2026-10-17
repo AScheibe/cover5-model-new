@@ -12,7 +12,7 @@
       "game_id": "2026_06_CAR_PHI",
       "side": "AWAY",
       "team": "CAR",
-      "edge": 2.0,
+      "edge": 1.5,
       "locked": false,
       "manual": false
     },
@@ -184,7 +184,20 @@
         "SF:+0.0"
       ],
       "projected": 6.5
+    },
+    {
+      "at": "2026-10-17T02:38:18+00:00",
+      "reason": "market update",
+      "changed": false,
+      "picks": [
+        "CLE:+2.5",
+        "CAR:+1.5",
+        "LV:+1.0",
+        "LAC:+1.0",
+        "SF:+0.0"
+      ],
+      "projected": 6.0
     }
   ],
-  "last_run": "2026-10-16T22:25:26+00:00"
+  "last_run": "2026-10-17T02:38:18+00:00"
 }
