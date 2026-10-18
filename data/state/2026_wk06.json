@@ -1,14 +1,6 @@
 {
   "recommended": [
     {
-      "game_id": "2026_06_NO_NYG",
-      "side": "HOME",
-      "team": "NYG",
-      "edge": 3.0,
-      "locked": false,
-      "manual": false
-    },
-    {
       "game_id": "2026_06_BAL_CLE",
       "side": "HOME",
       "team": "CLE",
@@ -37,6 +29,14 @@
       "side": "AWAY",
       "team": "TEN",
       "edge": 0.5,
+      "locked": false,
+      "manual": false
+    },
+    {
+      "game_id": "2026_06_NO_NYG",
+      "side": "HOME",
+      "team": "NYG",
+      "edge": 0.0,
       "locked": false,
       "manual": false
     }
@@ -288,7 +288,20 @@
         "TEN:+0.5"
       ],
       "projected": 8.5
+    },
+    {
+      "at": "2026-10-18T13:43:58+00:00",
+      "reason": "market update",
+      "changed": false,
+      "picks": [
+        "CLE:+2.5",
+        "CAR:+1.5",
+        "LAC:+1.0",
+        "TEN:+0.5",
+        "NYG:+0.0"
+      ],
+      "projected": 5.5
     }
   ],
-  "last_run": "2026-10-18T08:29:22+00:00"
+  "last_run": "2026-10-18T13:43:58+00:00"
 }
