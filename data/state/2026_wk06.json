@@ -33,10 +33,10 @@
       "manual": false
     },
     {
-      "game_id": "2026_06_WAS_SF",
-      "side": "HOME",
-      "team": "SF",
-      "edge": 0.0,
+      "game_id": "2026_06_TEN_IND",
+      "side": "AWAY",
+      "team": "TEN",
+      "edge": 0.5,
       "locked": false,
       "manual": false
     }
@@ -275,7 +275,20 @@
         "SF:+0.0"
       ],
       "projected": 8.0
+    },
+    {
+      "at": "2026-10-18T08:29:22+00:00",
+      "reason": "market update",
+      "changed": true,
+      "picks": [
+        "NYG:+3.0",
+        "CLE:+2.5",
+        "CAR:+1.5",
+        "LAC:+1.0",
+        "TEN:+0.5"
+      ],
+      "projected": 8.5
     }
   ],
-  "last_run": "2026-10-18T02:39:37+00:00"
+  "last_run": "2026-10-18T08:29:22+00:00"
 }
