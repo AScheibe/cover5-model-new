@@ -1,6 +1,30 @@
 {
   "recommended": [
     {
+      "game_id": "2026_07_LA_LV",
+      "side": "HOME",
+      "team": "LV",
+      "edge": 1.0,
+      "locked": false,
+      "manual": false
+    },
+    {
+      "game_id": "2026_07_KC_SEA",
+      "side": "HOME",
+      "team": "SEA",
+      "edge": 0.5,
+      "locked": false,
+      "manual": false
+    },
+    {
+      "game_id": "2026_07_SF_ATL",
+      "side": "HOME",
+      "team": "ATL",
+      "edge": 0.5,
+      "locked": false,
+      "manual": false
+    },
+    {
       "game_id": "2026_07_DAL_PHI",
       "side": "HOME",
       "team": "PHI",
@@ -9,33 +33,9 @@
       "manual": false
     },
     {
-      "game_id": "2026_07_KC_SEA",
-      "side": "HOME",
-      "team": "SEA",
-      "edge": 0.0,
-      "locked": false,
-      "manual": false
-    },
-    {
       "game_id": "2026_07_GB_DET",
       "side": "HOME",
       "team": "DET",
-      "edge": 0.0,
-      "locked": false,
-      "manual": false
-    },
-    {
-      "game_id": "2026_07_LA_LV",
-      "side": "HOME",
-      "team": "LV",
-      "edge": 0.0,
-      "locked": false,
-      "manual": false
-    },
-    {
-      "game_id": "2026_07_DEN_ARI",
-      "side": "HOME",
-      "team": "ARI",
       "edge": 0.0,
       "locked": false,
       "manual": false
@@ -80,7 +80,20 @@
         "ARI:+0.0"
       ],
       "projected": 0.0
+    },
+    {
+      "at": "2026-10-22T14:49:40+00:00",
+      "reason": "market update",
+      "changed": true,
+      "picks": [
+        "LV:+1.0",
+        "SEA:+0.5",
+        "ATL:+0.5",
+        "PHI:+0.0",
+        "DET:+0.0"
+      ],
+      "projected": 2.0
     }
   ],
-  "last_run": "2026-10-22T09:05:55+00:00"
+  "last_run": "2026-10-22T14:49:40+00:00"
 }
