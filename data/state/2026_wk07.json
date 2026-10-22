@@ -1,6 +1,14 @@
 {
   "recommended": [
     {
+      "game_id": "2026_07_CIN_BAL",
+      "side": "HOME",
+      "team": "BAL",
+      "edge": 3.0,
+      "locked": false,
+      "manual": false
+    },
+    {
       "game_id": "2026_07_LA_LV",
       "side": "HOME",
       "team": "LV",
@@ -28,14 +36,6 @@
       "game_id": "2026_07_DAL_PHI",
       "side": "HOME",
       "team": "PHI",
-      "edge": 0.0,
-      "locked": false,
-      "manual": false
-    },
-    {
-      "game_id": "2026_07_GB_DET",
-      "side": "HOME",
-      "team": "DET",
       "edge": 0.0,
       "locked": false,
       "manual": false
@@ -93,7 +93,20 @@
         "DET:+0.0"
       ],
       "projected": 2.0
+    },
+    {
+      "at": "2026-10-22T19:41:41+00:00",
+      "reason": "market update",
+      "changed": true,
+      "picks": [
+        "BAL:+3.0",
+        "LV:+1.0",
+        "SEA:+0.5",
+        "ATL:+0.5",
+        "PHI:+0.0"
+      ],
+      "projected": 5.0
     }
   ],
-  "last_run": "2026-10-22T14:49:40+00:00"
+  "last_run": "2026-10-22T19:41:41+00:00"
 }
