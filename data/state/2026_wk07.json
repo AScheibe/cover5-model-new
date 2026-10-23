@@ -33,10 +33,10 @@
       "manual": false
     },
     {
-      "game_id": "2026_07_DAL_PHI",
+      "game_id": "2026_07_PIT_NO",
       "side": "HOME",
-      "team": "PHI",
-      "edge": 0.0,
+      "team": "NO",
+      "edge": 0.5,
       "locked": false,
       "manual": false
     }
@@ -132,7 +132,20 @@
         "PHI:+0.0"
       ],
       "projected": 5.0
+    },
+    {
+      "at": "2026-10-23T09:00:30+00:00",
+      "reason": "market update",
+      "changed": true,
+      "picks": [
+        "BAL:+3.0",
+        "LV:+1.0",
+        "SEA:+0.5",
+        "ATL:+0.5",
+        "NO:+0.5"
+      ],
+      "projected": 5.5
     }
   ],
-  "last_run": "2026-10-23T03:00:08+00:00"
+  "last_run": "2026-10-23T09:00:30+00:00"
 }
