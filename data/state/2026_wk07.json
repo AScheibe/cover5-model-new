@@ -9,17 +9,17 @@
       "manual": false
     },
     {
-      "game_id": "2026_07_CLE_TEN",
+      "game_id": "2026_07_CIN_BAL",
       "side": "AWAY",
-      "team": "CLE",
-      "edge": 1.0,
+      "team": "CIN",
+      "edge": 1.5,
       "locked": false,
       "manual": false
     },
     {
-      "game_id": "2026_07_CIN_BAL",
+      "game_id": "2026_07_CLE_TEN",
       "side": "AWAY",
-      "team": "CIN",
+      "team": "CLE",
       "edge": 1.0,
       "locked": false,
       "manual": false
@@ -249,7 +249,20 @@
         "ATL:+0.5"
       ],
       "projected": 4.5
+    },
+    {
+      "at": "2026-10-24T23:56:50+00:00",
+      "reason": "market update",
+      "changed": false,
+      "picks": [
+        "LV:+1.5",
+        "CIN:+1.5",
+        "CLE:+1.0",
+        "SEA:+0.5",
+        "ATL:+0.5"
+      ],
+      "projected": 5.0
     }
   ],
-  "last_run": "2026-10-24T20:05:01+00:00"
+  "last_run": "2026-10-24T23:56:50+00:00"
 }
