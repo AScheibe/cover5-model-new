@@ -5,21 +5,21 @@
       "side": "AWAY",
       "team": "CIN",
       "edge": 1.5,
-      "locked": false,
-      "manual": false
-    },
-    {
-      "game_id": "2026_07_LA_LV",
-      "side": "HOME",
-      "team": "LV",
-      "edge": 1.0,
-      "locked": false,
+      "locked": true,
       "manual": false
     },
     {
       "game_id": "2026_07_MIA_NYJ",
       "side": "AWAY",
       "team": "MIA",
+      "edge": 1.0,
+      "locked": true,
+      "manual": false
+    },
+    {
+      "game_id": "2026_07_LA_LV",
+      "side": "HOME",
+      "team": "LV",
       "edge": 1.0,
       "locked": false,
       "manual": false
@@ -314,7 +314,20 @@
         "DET:+0.5"
       ],
       "projected": 4.5
+    },
+    {
+      "at": "2026-10-25T18:40:47+00:00",
+      "reason": "market update",
+      "changed": false,
+      "picks": [
+        "CIN:+1.5:L",
+        "MIA:+1.0:L",
+        "LV:+1.0",
+        "SEA:+0.5",
+        "DET:+0.5"
+      ],
+      "projected": 4.5
     }
   ],
-  "last_run": "2026-10-25T16:59:02+00:00"
+  "last_run": "2026-10-25T18:40:47+00:00"
 }
