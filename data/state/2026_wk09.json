@@ -9,6 +9,14 @@
       "manual": false
     },
     {
+      "game_id": "2026_09_NYJ_KC",
+      "side": "AWAY",
+      "team": "NYJ",
+      "edge": 1.5,
+      "locked": false,
+      "manual": false
+    },
+    {
       "game_id": "2026_09_LA_WAS",
       "side": "HOME",
       "team": "WAS",
@@ -28,14 +36,6 @@
       "game_id": "2026_09_BUF_MIN",
       "side": "HOME",
       "team": "MIN",
-      "edge": 0.5,
-      "locked": false,
-      "manual": false
-    },
-    {
-      "game_id": "2026_09_NYJ_KC",
-      "side": "AWAY",
-      "team": "NYJ",
       "edge": 0.5,
       "locked": false,
       "manual": false
@@ -145,7 +145,20 @@
         "NYJ:+0.5"
       ],
       "projected": 4.5
+    },
+    {
+      "at": "2026-11-07T16:02:13+00:00",
+      "reason": "market update",
+      "changed": false,
+      "picks": [
+        "HOU:+1.5",
+        "NYJ:+1.5",
+        "WAS:+1.0",
+        "IND:+1.0",
+        "MIN:+0.5"
+      ],
+      "projected": 5.5
     }
   ],
-  "last_run": "2026-11-07T08:10:44+00:00"
+  "last_run": "2026-11-07T16:02:13+00:00"
 }
