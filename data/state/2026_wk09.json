@@ -36,7 +36,7 @@
       "game_id": "2026_09_BUF_MIN",
       "side": "HOME",
       "team": "MIN",
-      "edge": 0.5,
+      "edge": 0.0,
       "locked": false,
       "manual": false
     }
@@ -262,7 +262,20 @@
         "MIN:+0.5"
       ],
       "projected": 15.0
+    },
+    {
+      "at": "2026-11-09T20:21:41+00:00",
+      "reason": "market update",
+      "changed": false,
+      "picks": [
+        "WAS:+1.0:L",
+        "IND:+1.0:L",
+        "HOU:+1.0:L",
+        "MIA:+0.5:L",
+        "MIN:+0.0"
+      ],
+      "projected": 14.5
     }
   ],
-  "last_run": "2026-11-09T08:57:52+00:00"
+  "last_run": "2026-11-09T20:21:41+00:00"
 }
