@@ -1,0 +1,60 @@
+{
+  "recommended": [
+    {
+      "game_id": "2026_10_SF_DAL",
+      "side": "HOME",
+      "team": "DAL",
+      "edge": 1.0,
+      "locked": false,
+      "manual": false
+    },
+    {
+      "game_id": "2026_10_KC_ATL",
+      "side": "HOME",
+      "team": "ATL",
+      "edge": 0.5,
+      "locked": false,
+      "manual": false
+    },
+    {
+      "game_id": "2026_10_LAC_BAL",
+      "side": "HOME",
+      "team": "BAL",
+      "edge": 0.0,
+      "locked": false,
+      "manual": false
+    },
+    {
+      "game_id": "2026_10_PIT_CIN",
+      "side": "HOME",
+      "team": "CIN",
+      "edge": 0.0,
+      "locked": false,
+      "manual": false
+    },
+    {
+      "game_id": "2026_10_LA_ARI",
+      "side": "HOME",
+      "team": "ARI",
+      "edge": 0.0,
+      "locked": false,
+      "manual": false
+    }
+  ],
+  "history": [
+    {
+      "at": "2026-11-12T02:39:30+00:00",
+      "reason": "market update",
+      "changed": true,
+      "picks": [
+        "DAL:+1.0",
+        "ATL:+0.5",
+        "BAL:+0.0",
+        "CIN:+0.0",
+        "ARI:+0.0"
+      ],
+      "projected": 1.5
+    }
+  ],
+  "last_run": "2026-11-12T02:39:30+00:00"
+}
