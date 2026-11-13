@@ -1,17 +1,17 @@
 {
   "recommended": [
     {
-      "game_id": "2026_10_SF_DAL",
-      "side": "HOME",
-      "team": "DAL",
-      "edge": 1.0,
-      "locked": false,
-      "manual": false
-    },
-    {
       "game_id": "2026_10_WAS_NYG",
       "side": "AWAY",
       "team": "WAS",
+      "edge": 1.0,
+      "locked": true,
+      "manual": false
+    },
+    {
+      "game_id": "2026_10_SF_DAL",
+      "side": "HOME",
+      "team": "DAL",
       "edge": 1.0,
       "locked": false,
       "manual": false
@@ -80,7 +80,20 @@
         "CIN:+0.0"
       ],
       "projected": 2.5
+    },
+    {
+      "at": "2026-11-13T02:20:11+00:00",
+      "reason": "market update",
+      "changed": false,
+      "picks": [
+        "WAS:+1.0:L",
+        "DAL:+1.0",
+        "ATL:+0.5",
+        "BAL:+0.0",
+        "CIN:+0.0"
+      ],
+      "projected": 2.5
     }
   ],
-  "last_run": "2026-11-12T21:16:22+00:00"
+  "last_run": "2026-11-13T02:20:11+00:00"
 }
