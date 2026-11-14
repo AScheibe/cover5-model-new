@@ -17,6 +17,14 @@
       "manual": false
     },
     {
+      "game_id": "2026_10_MIN_GB",
+      "side": "AWAY",
+      "team": "MIN",
+      "edge": 0.5,
+      "locked": false,
+      "manual": false
+    },
+    {
       "game_id": "2026_10_LAC_BAL",
       "side": "HOME",
       "team": "BAL",
@@ -28,14 +36,6 @@
       "game_id": "2026_10_SF_DAL",
       "side": "HOME",
       "team": "DAL",
-      "edge": 0.0,
-      "locked": false,
-      "manual": false
-    },
-    {
-      "game_id": "2026_10_NE_DET",
-      "side": "HOME",
-      "team": "DET",
       "edge": 0.0,
       "locked": false,
       "manual": false
@@ -132,7 +132,20 @@
         "DET:+0.0"
       ],
       "projected": 6.0
+    },
+    {
+      "at": "2026-11-14T08:27:53+00:00",
+      "reason": "market update",
+      "changed": true,
+      "picks": [
+        "WAS:+1.0:L",
+        "ATL:+0.5",
+        "MIN:+0.5",
+        "BAL:+0.0",
+        "DAL:+0.0"
+      ],
+      "projected": 6.5
     }
   ],
-  "last_run": "2026-11-14T00:37:05+00:00"
+  "last_run": "2026-11-14T08:27:53+00:00"
 }
