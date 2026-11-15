@@ -13,7 +13,7 @@
       "side": "HOME",
       "team": "IND",
       "edge": 1.0,
-      "locked": false,
+      "locked": true,
       "manual": false
     },
     {
@@ -21,7 +21,7 @@
       "side": "AWAY",
       "team": "CAR",
       "edge": 1.0,
-      "locked": false,
+      "locked": true,
       "manual": false
     },
     {
@@ -29,7 +29,7 @@
       "side": "HOME",
       "team": "ATL",
       "edge": 0.5,
-      "locked": false,
+      "locked": true,
       "manual": false
     },
     {
@@ -37,7 +37,7 @@
       "side": "AWAY",
       "team": "MIN",
       "edge": 0.5,
-      "locked": false,
+      "locked": true,
       "manual": false
     }
   ],
@@ -210,7 +210,20 @@
         "MIN:+0.5"
       ],
       "projected": 8.5
+    },
+    {
+      "at": "2026-11-15T19:16:40+00:00",
+      "reason": "market update",
+      "changed": false,
+      "picks": [
+        "WAS:+1.0:L",
+        "IND:+1.0:L",
+        "CAR:+1.0:L",
+        "ATL:+0.5:L",
+        "MIN:+0.5:L"
+      ],
+      "projected": 8.5
     }
   ],
-  "last_run": "2026-11-15T16:44:55+00:00"
+  "last_run": "2026-11-15T19:16:40+00:00"
 }
