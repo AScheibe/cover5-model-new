@@ -33,10 +33,10 @@
       "manual": false
     },
     {
-      "game_id": "2026_10_MIN_GB",
+      "game_id": "2026_10_CAR_NO",
       "side": "AWAY",
-      "team": "MIN",
-      "edge": 0.5,
+      "team": "CAR",
+      "edge": 1.0,
       "locked": false,
       "manual": false
     }
@@ -184,7 +184,20 @@
         "MIN:+0.5"
       ],
       "projected": 9.0
+    },
+    {
+      "at": "2026-11-15T08:44:05+00:00",
+      "reason": "market update",
+      "changed": true,
+      "picks": [
+        "WAS:+1.0:L",
+        "DAL:+1.0",
+        "IND:+1.0",
+        "NYJ:+1.0",
+        "CAR:+1.0"
+      ],
+      "projected": 9.5
     }
   ],
-  "last_run": "2026-11-15T01:28:55+00:00"
+  "last_run": "2026-11-15T08:44:05+00:00"
 }
