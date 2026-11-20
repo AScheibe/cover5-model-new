@@ -1,17 +1,17 @@
 {
   "recommended": [
     {
-      "game_id": "2026_11_PIT_PHI",
-      "side": "HOME",
-      "team": "PHI",
-      "edge": 1.0,
+      "game_id": "2026_11_TB_DET",
+      "side": "AWAY",
+      "team": "TB",
+      "edge": 1.5,
       "locked": false,
       "manual": false
     },
     {
-      "game_id": "2026_11_TB_DET",
-      "side": "AWAY",
-      "team": "TB",
+      "game_id": "2026_11_PIT_PHI",
+      "side": "HOME",
+      "team": "PHI",
       "edge": 1.0,
       "locked": false,
       "manual": false
@@ -33,9 +33,9 @@
       "manual": false
     },
     {
-      "game_id": "2026_11_MIN_SF",
+      "game_id": "2026_11_LV_DEN",
       "side": "HOME",
-      "team": "SF",
+      "team": "DEN",
       "edge": 0.5,
       "locked": false,
       "manual": false
@@ -106,7 +106,20 @@
         "SF:+0.5"
       ],
       "projected": 4.0
+    },
+    {
+      "at": "2026-11-20T22:28:21+00:00",
+      "reason": "market update",
+      "changed": true,
+      "picks": [
+        "TB:+1.5",
+        "PHI:+1.0",
+        "KC:+1.0",
+        "WAS:+0.5",
+        "DEN:+0.5"
+      ],
+      "projected": 4.5
     }
   ],
-  "last_run": "2026-11-20T14:46:33+00:00"
+  "last_run": "2026-11-20T22:28:21+00:00"
 }
