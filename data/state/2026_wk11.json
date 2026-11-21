@@ -25,17 +25,17 @@
       "manual": false
     },
     {
-      "game_id": "2026_11_CIN_WAS",
-      "side": "HOME",
-      "team": "WAS",
-      "edge": 0.5,
+      "game_id": "2026_11_TEN_DAL",
+      "side": "AWAY",
+      "team": "TEN",
+      "edge": 1.0,
       "locked": false,
       "manual": false
     },
     {
-      "game_id": "2026_11_LV_DEN",
+      "game_id": "2026_11_CIN_WAS",
       "side": "HOME",
-      "team": "DEN",
+      "team": "WAS",
       "edge": 0.5,
       "locked": false,
       "manual": false
@@ -132,7 +132,20 @@
         "DEN:+0.5"
       ],
       "projected": 4.5
+    },
+    {
+      "at": "2026-11-21T14:01:46+00:00",
+      "reason": "market update",
+      "changed": true,
+      "picks": [
+        "TB:+1.5",
+        "PHI:+1.0",
+        "KC:+1.0",
+        "TEN:+1.0",
+        "WAS:+0.5"
+      ],
+      "projected": 5.0
     }
   ],
-  "last_run": "2026-11-21T05:15:26+00:00"
+  "last_run": "2026-11-21T14:01:46+00:00"
 }
