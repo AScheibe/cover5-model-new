@@ -5,21 +5,21 @@
       "side": "AWAY",
       "team": "TB",
       "edge": 3.5,
-      "locked": false,
-      "manual": false
-    },
-    {
-      "game_id": "2026_11_PIT_PHI",
-      "side": "HOME",
-      "team": "PHI",
-      "edge": 1.0,
-      "locked": false,
+      "locked": true,
       "manual": false
     },
     {
       "game_id": "2026_11_TEN_DAL",
       "side": "AWAY",
       "team": "TEN",
+      "edge": 1.0,
+      "locked": true,
+      "manual": false
+    },
+    {
+      "game_id": "2026_11_PIT_PHI",
+      "side": "HOME",
+      "team": "PHI",
       "edge": 1.0,
       "locked": false,
       "manual": false
@@ -197,7 +197,20 @@
         "DEN:+0.5"
       ],
       "projected": 6.5
+    },
+    {
+      "at": "2026-11-22T20:11:55+00:00",
+      "reason": "market update",
+      "changed": false,
+      "picks": [
+        "TB:+3.5:L",
+        "TEN:+1.0:L",
+        "PHI:+1.0",
+        "WAS:+0.5",
+        "DEN:+0.5"
+      ],
+      "projected": 6.5
     }
   ],
-  "last_run": "2026-11-22T17:33:46+00:00"
+  "last_run": "2026-11-22T20:11:55+00:00"
 }
