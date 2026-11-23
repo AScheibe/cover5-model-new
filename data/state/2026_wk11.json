@@ -236,7 +236,20 @@
         "WAS:+0.5"
       ],
       "projected": -3.5
+    },
+    {
+      "at": "2026-11-23T17:08:32+00:00",
+      "reason": "market update",
+      "changed": false,
+      "picks": [
+        "TB:+3.5:L",
+        "TEN:+1.0:L",
+        "PHI:+1.0:L",
+        "DEN:+0.5:L",
+        "WAS:+0.5"
+      ],
+      "projected": -3.5
     }
   ],
-  "last_run": "2026-11-23T05:18:08+00:00"
+  "last_run": "2026-11-23T17:08:32+00:00"
 }
