@@ -1,0 +1,60 @@
+{
+  "recommended": [
+    {
+      "game_id": "2026_12_NYJ_MIA",
+      "side": "AWAY",
+      "team": "NYJ",
+      "edge": 1.0,
+      "locked": false,
+      "manual": false
+    },
+    {
+      "game_id": "2026_12_WAS_ARI",
+      "side": "AWAY",
+      "team": "WAS",
+      "edge": 0.5,
+      "locked": false,
+      "manual": false
+    },
+    {
+      "game_id": "2026_12_NYG_IND",
+      "side": "HOME",
+      "team": "IND",
+      "edge": 0.5,
+      "locked": false,
+      "manual": false
+    },
+    {
+      "game_id": "2026_12_CAR_TB",
+      "side": "HOME",
+      "team": "TB",
+      "edge": 0.0,
+      "locked": false,
+      "manual": false
+    },
+    {
+      "game_id": "2026_12_LV_CLE",
+      "side": "HOME",
+      "team": "CLE",
+      "edge": 0.0,
+      "locked": false,
+      "manual": false
+    }
+  ],
+  "history": [
+    {
+      "at": "2026-11-26T02:36:13+00:00",
+      "reason": "market update",
+      "changed": true,
+      "picks": [
+        "NYJ:+1.0",
+        "WAS:+0.5",
+        "IND:+0.5",
+        "TB:+0.0",
+        "CLE:+0.0"
+      ],
+      "projected": 2.0
+    }
+  ],
+  "last_run": "2026-11-26T02:36:13+00:00"
+}
