@@ -93,7 +93,20 @@
         "IND:+0.5"
       ],
       "projected": 5.0
+    },
+    {
+      "at": "2026-11-27T17:47:12+00:00",
+      "reason": "market update",
+      "changed": false,
+      "picks": [
+        "NYJ:+2.0",
+        "NE:+1.0",
+        "DEN:+1.0",
+        "SF:+0.5",
+        "IND:+0.5"
+      ],
+      "projected": 5.0
     }
   ],
-  "last_run": "2026-11-27T06:17:30+00:00"
+  "last_run": "2026-11-27T17:47:12+00:00"
 }
