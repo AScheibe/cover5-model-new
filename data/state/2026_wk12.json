@@ -1,6 +1,14 @@
 {
   "recommended": [
     {
+      "game_id": "2026_12_SEA_SF",
+      "side": "AWAY",
+      "team": "SEA",
+      "edge": 4.0,
+      "locked": false,
+      "manual": false
+    },
+    {
       "game_id": "2026_12_NYJ_MIA",
       "side": "AWAY",
       "team": "NYJ",
@@ -12,7 +20,7 @@
       "game_id": "2026_12_NE_LAC",
       "side": "AWAY",
       "team": "NE",
-      "edge": 1.0,
+      "edge": 1.5,
       "locked": false,
       "manual": false
     },
@@ -21,22 +29,14 @@
       "side": "AWAY",
       "team": "DEN",
       "edge": 1.0,
-      "locked": false,
-      "manual": false
-    },
-    {
-      "game_id": "2026_12_SEA_SF",
-      "side": "HOME",
-      "team": "SF",
-      "edge": 0.5,
-      "locked": false,
+      "locked": true,
       "manual": false
     },
     {
       "game_id": "2026_12_NYG_IND",
       "side": "HOME",
       "team": "IND",
-      "edge": 0.5,
+      "edge": 1.0,
       "locked": false,
       "manual": false
     }
@@ -106,7 +106,20 @@
         "IND:+0.5"
       ],
       "projected": 5.0
+    },
+    {
+      "at": "2026-11-28T00:57:47+00:00",
+      "reason": "market update",
+      "changed": true,
+      "picks": [
+        "SEA:+4.0",
+        "NYJ:+2.0",
+        "NE:+1.5",
+        "DEN:+1.0:L",
+        "IND:+1.0"
+      ],
+      "projected": -17.0
     }
   ],
-  "last_run": "2026-11-27T17:47:12+00:00"
+  "last_run": "2026-11-28T00:57:47+00:00"
 }
